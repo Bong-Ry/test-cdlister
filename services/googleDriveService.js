@@ -15,6 +15,17 @@ function getFolderIdFromUrl(url) {
     return match ? match[1] : null;
 }
 
+async function countProcessedSubfolders(parentFolderUrl) {
+    const parentFolderId = getFolderIdFromUrl(parentFolderUrl);
+    if (!parentFolderId) throw new Error('親フォルダのURLが無効です。');
+    const drive = await getDriveClient();
+    const res = await drive.files.list({
+        q: `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false and name contains '済'`,
+        fields: 'files(id)',
+    });
+    return res.data.files ? res.data.files.length : 0;
+}
+
 async function getUnprocessedSubfolders(parentFolderUrl) {
     const parentFolderId = getFolderIdFromUrl(parentFolderUrl);
     if (!parentFolderId) throw new Error('親フォルダのURLが無効です。');
@@ -56,7 +67,6 @@ async function downloadFile(fileId) {
     return Buffer.from(res.data);
 }
 
-// ★追加：画像ストリームを取得する関数
 async function getImageStream(fileId) {
     const drive = await getDriveClient();
     const res = await drive.files.get(
@@ -76,10 +86,11 @@ async function renameFolder(folderId, newName) {
 
 module.exports = {
     getFolderIdFromUrl,
+    countProcessedSubfolders,
     getUnprocessedSubfolders,
     getImagesForAnalysis,
     getAllImageFiles,
     downloadFile,
-    getImageStream, // ★追加
+    getImageStream,
     renameFolder
 };

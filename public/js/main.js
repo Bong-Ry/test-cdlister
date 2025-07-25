@@ -12,22 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function createRow(record) {
         const isError = record.status === 'error';
 
-        // 表示するメイン画像を決定 (J1_を優先)
         const j1Image = record.allImageUrls ? record.allImageUrls.find(url => url.includes(record.aiData?.J1_FileId)) : null;
-        // J1_が見つからなければ最初の画像
         const mainImageUrl = j1Image ? `/image/${record.aiData.J1_FileId}` : (record.allImageUrls && record.allImageUrls.length > 0 ? `/image/${record.allImageUrls[0].split('/d/')[1].split('/')[0]}` : '');
 
         const title = record.aiData?.Title || record.folderName || '取得エラー';
         const artist = record.aiData?.Artist || 'N/A';
         const notes = record.aiData?.editionNotes || '';
-        
-        // 価格のラジオボタンを生成
+        const customLabel = record.customLabel || record.folderName;
+
         const priceOptions = ['29.99', '39.99', '59.99', '79.99', '99.99'];
         const priceRadios = priceOptions.map((price, index) =>
             `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
         ).join('');
         
-        // 送料のプルダウンを生成
         const shippingOptions = {'15': '15 USD', '25': '25 USD', '32': '32 USD'};
         const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name}</option>`).join('');
 
@@ -37,8 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="image-cell"><img src="${mainImageUrl}" alt="CD Image" class="main-record-image"></td>
                 <td class="info-cell">
                     <div class="info-input-group">
-                        <label>SKU</label>
-                        <span class="sku-display">${record.folderName}</span>
+                        <label>CustomLabel</label>
+                        <span class="sku-display">${customLabel}</span>
                     </div>
                     <div class="info-input-group">
                         <label>${artist}</label>
@@ -47,6 +44,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td class="input-cell">
                     <div class="input-section">
+                        <div class="input-group">
+                            <label>状態</label>
+                            <select name="condition" ${isError ? 'disabled' : ''}>
+                                <option value="1000">新品</option>
+                                <option value="3000">中古</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                             <label>Store Category</label>
+                             <select name="storeCategory" ${isError ? 'disabled' : ''}>
+                                 <option value="4233877819">4233877819</option>
+                                 <option value="4234611919">4234611919</option>
+                             </select>
+                        </div>
                         <div class="input-group full-width">
                             <label>価格</label>
                             <div class="radio-group">${priceRadios}</div>
@@ -76,6 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
             price: row.querySelector(`input[name="price-${recordId}"]:checked`).value,
             shipping: row.querySelector('[name="shipping"]').value,
             comment: row.querySelector('[name="comment"]').value,
+            condition: row.querySelector('[name="condition"]').value,
+            storeCategory: row.querySelector('[name="storeCategory"]').value,
         };
 
         fetch(`/save/${sessionId}/${recordId}`, {
@@ -92,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // (checkStatus関数は変更なし)
     function checkStatus() {
         fetch(`/status/${sessionId}`)
         .then(res => res.json())
@@ -108,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             session.records.forEach(record => {
-                // allImageUrlsからJ1のIDを取得してaiDataに一時的に追加
                 if (record.aiData && record.allImageUrls) {
                     const j1File = (record.allImageUrls.find(url => url.includes('J1_')) || record.allImageUrls[0]);
                     if(j1File) record.aiData.J1_FileId = j1File.split('/d/')[1].split('/')[0];
