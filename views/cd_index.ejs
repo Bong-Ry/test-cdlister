@@ -1,22 +1,21 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CD出品アシスタント</title>
-    <link rel="stylesheet" href="/css/style.css">
-</head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  </head>
 <body>
-    <div class="container">
-        <h1>CD出品アシスタント</h1>
-        <p>Google Driveの親フォルダURLを入力して、出品データを生成します。</p>
-        <form action="/process" method="POST">
-            <div class="form-group">
-                <label for="parentFolderUrl">Google Drive 親フォルダURL</label>
-                <input type="text" id="parentFolderUrl" name="parentFolderUrl" class="url-input" placeholder="https://drive.google.com/drive/folders/..." required>
-            </div>
-            <button type="submit" class="btn">解析を開始</button>
-        </form>
+  <h1><%= title %></h1>
+  
+  <form action="/analyze" method="POST">
+    <div>
+      <label for="driveUrl">Google Drive 親フォルダURL:</label>
+      <input type="url" id="driveUrl" name="driveUrl" required style="width: 400px;">
     </div>
+    <br>
+    <button type="submit">解析を開始</button>
+  </form>
+
 </body>
 </html>

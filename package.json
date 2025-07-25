@@ -1,6 +1,6 @@
 {
   "name": "cd-lister",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "CD Listing Assistant System",
   "main": "app.js",
   "scripts": {
@@ -9,11 +9,21 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
-    "express": "^4.19.2",
+    "express": "^4.21.2",
     "googleapis": "^140.0.1",
+    "multer": "^2.0.2",
     "openai": "^4.52.7",
     "uuid": "^10.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bong-Ry/cd-lister.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Bong-Ry/cd-lister/issues"
+  },
+  "homepage": "https://github.com/Bong-Ry/cd-lister#readme"
 }
-
-
