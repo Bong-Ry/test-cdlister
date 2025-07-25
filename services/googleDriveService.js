@@ -1,4 +1,4 @@
-const { google } = require('googleapis');
+kconst { google } = require('googleapis');
 const path = require('path');
 
 const KEY_FILE_PATH = path.join(__dirname, '..', 'service-account-key.json');
@@ -50,7 +50,7 @@ async function getAllImageFiles(folderId) {
     const drive = await getDriveClient();
     const response = await drive.files.list({
         q: `'${folderId}' in parents and mimeType contains 'image/'`,
-        fields: 'files(id, name, webViewLink)', // webViewLinkも取得
+        fields: 'files(id, name)', // PicURL用にidとnameを取得
     });
     return response.data.files || [];
 }

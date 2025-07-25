@@ -83,16 +83,16 @@ module.exports = (sessions) => {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
                         const imageBuffers = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-
+                        
                         const aiData = await aiService.analyzeCd(imageBuffers);
-
+                        
                         const allFiles = await driveService.getAllImageFiles(record.folderId);
                         const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
                         const m = allFiles.filter(f => f.name.startsWith('M')).sort((a,b) => collator.compare(a.name, b.name));
                         const j = allFiles.filter(f => f.name.startsWith('J')).sort((a,b) => collator.compare(a.name, b.name));
                         const d = allFiles.filter(f => f.name.startsWith('D')).sort((a,b) => collator.compare(a.name, b.name));
-                        // ここは実際のアップロード後のURL構造に合わせて変更してください
-                        const allImageUrls = [...m, ...j, ...d].map(f => f.webViewLink);
+                        // webViewLinkは直接表示できないため、Google DriveのファイルプレビューURLを生成
+                        const allImageUrls = [...m, ...j, ...d].map(f => `https://drive.google.com/file/d/${f.id}/view`);
 
                         Object.assign(record, { status: 'success', aiData, allImageUrls });
 
@@ -117,10 +117,10 @@ module.exports = (sessions) => {
         const session = sessions.get(sessionId);
         const record = session?.records.find(r => r.id === recordId);
         if (!record) return res.status(404).json({ error: 'Record not found' });
-
+        
         record.userInput = req.body;
         record.status = 'saved';
-
+        
         await driveService.renameFolder(record.folderId, `済 ${record.folderName}`);
         res.json({ status: 'ok' });
     });
@@ -131,7 +131,7 @@ module.exports = (sessions) => {
 
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const fileName = `cd_lister_${date}.csv`;
-
+        
         res.header('Content-Type', 'text/csv; charset=UTF-8');
         res.attachment(fileName);
         res.send('\uFEFF' + generateCsv(session.records)); // BOM付きUTF-8

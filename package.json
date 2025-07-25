@@ -1,29 +1,16 @@
 {
   "name": "cd-lister",
-  "version": "1.1.0",
-  "description": "CD Listing Assistant System",
+  "version": "1.2.0",
+  "description": "CD出品をアシストするツール",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "ejs": "^3.1.10",
-    "express": "^4.21.2",
-    "googleapis": "^140.0.1",
-    "multer": "^2.0.2",
-    "openai": "^4.104.0",
+    "googleapis": "^140.0.0",
+    "openai": "^4.52.3",
     "uuid": "^10.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Bong-Ry/cd-lister.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Bong-Ry/cd-lister/issues"
-  },
-  "homepage": "https://github.com/Bong-Ry/cd-lister#readme"
+  }
 }

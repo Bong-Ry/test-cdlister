@@ -8,7 +8,7 @@ h3.section-title { font-size: 15px; font-weight: bold; padding-bottom: 5px; bord
 input[type="number"], select, textarea, .btn { padding: 8px 12px; border-radius: 4px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; margin: 0; font-size: 14px; }
 .btn { background-color: #3498db; color: #fff; cursor: pointer; border: none; font-weight: bold; font-size: 16px; }
 .btn-save { background-color: #2ecc71; }
-.btn-download { float: right; width: auto; margin-bottom: 15px; }
+.btn-download { float: right; width: auto; margin-bottom: 15px; text-decoration: none; display: inline-block; padding: 10px 15px;}
 .url-input { width: 100%; padding: 10px; margin-bottom: 10px; font-size: 16px; }
 
 /* テーブルレイアウト */
@@ -29,20 +29,9 @@ input[type="number"], select, textarea, .btn { padding: 8px 12px; border-radius:
 .input-cell .input-group label { font-weight: 600; font-size: 14px; }
 .full-width { grid-column: 1 / -1; }
 
-.title-warning { color: red; font-size: 12px; font-weight: 600; margin-top: 4px; }
-
-.radio-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 5px 10px; }
-.radio-label, .checkbox-label { display: flex; align-items: center; gap: 6px; font-weight: normal; }
-input[type="radio"], input[type="checkbox"] { width: auto; }
-
-.checkbox-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-
-tr.saved { background-color: #f0fff4; }
+/* 進捗バー */
 #progress-container { text-align: center; }
 .progress-bar { width: 100%; background-color: #e0e0e0; border-radius: 4px; overflow: hidden; }
 .progress-bar-inner { height: 20px; width: 0%; background-color: #3498db; }
 
-/* モーダル */
-.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); justify-content: center; align-items: center; }
-.modal-content { margin: auto; display: block; max-width: 80vw; max-height: 90vh; }
-.modal-close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; }
+tr.saved { background-color: #f0fff4; }

@@ -1,8 +1,8 @@
 const OpenAI = require('openai');
-const config = require('../config'); // APIキーを読み込む
 
+// Renderの環境変数からAPIキーを読み込む
 const openai = new OpenAI({
-    apiKey: config.openaiApiKey, // config.jsからキーを読み込む
+    apiKey: process.env.OPENAI_API_KEY, 
 });
 
 // CDの要件に合わせたプロンプト
@@ -32,7 +32,7 @@ const PROMPT_TEXT = `
 `;
 
 async function analyzeCd(imageBuffers) {
-    if (!imageBuffers || imageadoras.length === 0) {
+    if (!imageBuffers || imageBuffers.length === 0) {
         throw new Error('画像データがありません。');
     }
 
