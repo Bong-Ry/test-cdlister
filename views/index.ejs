@@ -10,10 +10,10 @@
     <div class="container">
         <h1>CD出品アシスタント</h1>
         <p>Google Driveの親フォルダURLを入力して、出品データを生成します。</p>
-        <form action="/analyze" method="POST">
+        <form action="/process" method="POST">
             <div class="form-group">
                 <label>Google Drive 親フォルダURL</label>
-                <input type="text" name="driveUrl" class="url-input" placeholder="https://drive.google.com/drive/folders/..." required>
+                <input type="text" name="parentFolderUrl" class="url-input" placeholder="https://drive.google.com/drive/folders/..." required>
             </div>
             <button type="submit" class="btn">解析を開始</button>
         </form>

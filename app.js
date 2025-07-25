@@ -1,23 +1,26 @@
 const express = require('express');
 const path = require('path');
-const ejs = require('ejs');
+const cdRoutes = require('./routes/cdRoutes');
 
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
+
+// 複数フォルダの処理状況をサーバー上で一時的に管理します
+const sessions = new Map();
 
 // View Engine Setup
-app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-// Publicフォルダの設定（CSSやJSファイルのため）
+// Middleware
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// ルーティング
-app.get('/', (req, res) => {
-  res.render('cd_index', { title: 'CD出品アシスタント' });
-});
+// ルーターにセッション管理機能を渡します
+app.use('/', cdRoutes(sessions));
 
-// サーバーを起動
-app.listen(port, () => {
-  console.log(`CD Lister app listening at http://localhost:${port}`);
+// Start Server
+app.listen(PORT, () => {
+    console.log(`CD Lister app listening at http://localhost:${PORT}`);
 });

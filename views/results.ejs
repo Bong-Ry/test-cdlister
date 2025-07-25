@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>解析結果 - CD出品アシスタント</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>解析結果</h1>
+        <div id="progress-container">
+            <div class="progress-bar"><div class="progress-bar-inner"></div></div>
+            <p id="progress-text">処理中です。しばらくお待ちください…</p>
+            <p id="error-message" style="color: red; display: none;"></p>
+        </div>
+        <div id="results-table-container" style="display: none;">
+            <a href="#" id="download-csv-btn" class="btn btn-download" style="display: none;">CSVダウンロード</a>
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">状態</th>
+                        <th style="width: 30%;">タイトル</th>
+                        <th style="width: 65%;">詳細入力</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        const sessionId = "<%= sessionId %>";
+    </script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

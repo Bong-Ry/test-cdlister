@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エラーが発生しました</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .error-container {
+            text-align: center;
+            margin-top: 50px;
+        }
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 8px;
+            display: inline-block;
+            border: 1px solid #c62828;
+        }
+        a.home-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container error-container">
+        <h1>処理中にエラーが発生しました</h1>
+        <div class="error-message">
+            <p>エラー内容:</p>
+            <pre><%= message %></pre>
+        </div>
+        <br>
+        <a href="/" class="home-link">トップページに戻る</a>
+    </div>
+</body>
+</html>
