@@ -24,6 +24,14 @@ const generateCsv = (records) => {
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, allImageUrls } = r;
+        const getShippingOption = (shipping) => {
+            switch (shipping) {
+                case '15': return 'StandardShippingFromOutsideUS';
+                case '25': return 'ExpeditedShippingFromOutsideUS';
+                case '32': return 'OtherInternational';
+                default: return '';
+            }
+        };
         const data = {
             "ConditionID": "1000",
             "Category": "14970",
@@ -43,7 +51,7 @@ const generateCsv = (records) => {
             "PriceInfo_BestOfferEnabled": "FALSE",
             "PriceInfo_MinimumBestOfferPrice": "",
             "ShippingService-1:Cost": userInput.shipping,
-            "ShippingService-1:Option": userInput.shipping === '210' ? 'JP_Post_YuPacket' : (userInput.shipping === '370' ? 'JP_Post_LetterPackLight' : 'JP_Post_LetterPackPlus')
+            "ShippingService-1:Option": getShippingOption(userInput.shipping)
         };
         return headers.map(h => `"${(data[h] || '').toString().replace(/"/g, '""')}"`).join(',');
     });

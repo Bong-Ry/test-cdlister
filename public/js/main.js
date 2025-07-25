@@ -22,14 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const notes = record.aiData?.editionNotes || '';
         
         // 価格のラジオボタンを生成
-        const priceOptions = ['1200', '1500', '1800', '2500', '3000'];
+        const priceOptions = ['29.99', '39.99', '59.99', '79.99', '99.99'];
         const priceRadios = priceOptions.map((price, index) =>
-            `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price}円</label>`
+            `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
         ).join('');
         
         // 送料のプルダウンを生成
-        const shippingOptions = {'210': 'ゆうパケット', '370': 'レターパックライト', '520': 'レターパックプラス'};
-        const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name} (${price}円)</option>`).join('');
+        const shippingOptions = {'15': '15 USD', '25': '25 USD', '32': '32 USD'};
+        const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name}</option>`).join('');
 
         return `
             <tr id="row-${record.id}" data-record-id="${record.id}" class="record-row">

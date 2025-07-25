@@ -1,6 +1,6 @@
 {
   "name": "cd-lister",
-  "version": "1.2.0",
+  "version": "1.7.0",
   "description": "CD出品をアシストするツール",
   "main": "app.js",
   "scripts": {
