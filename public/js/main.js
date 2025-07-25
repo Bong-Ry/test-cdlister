@@ -37,12 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="image-cell"><img src="${mainImageUrl}" alt="CD Image" class="main-record-image"></td>
                 <td class="info-cell">
                     <div class="info-input-group">
+                        <label>SKU</label>
+                        <span class="sku-display">${record.folderName}</span>
+                    </div>
+                    <div class="info-input-group">
                         <label>${artist}</label>
                         <textarea name="title" rows="4" ${isError ? 'disabled' : ''}>${title}</textarea>
-                    </div>
-                     <div class="info-input-group">
-                        <label>SKU (フォルダ名)</label>
-                        <span class="sku-display">${record.folderName}</span>
                     </div>
                 </td>
                 <td class="input-cell">
