@@ -1,4 +1,4 @@
-kconst { google } = require('googleapis');
+const { google } = require('googleapis');
 const path = require('path');
 
 const KEY_FILE_PATH = path.join(__dirname, '..', 'service-account-key.json');
