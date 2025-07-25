@@ -43,7 +43,7 @@ const generateCsv = (records) => {
             "PriceInfo_BestOfferEnabled": "FALSE",
             "PriceInfo_MinimumBestOfferPrice": "",
             "ShippingService-1:Cost": userInput.shipping,
-            "ShippingService-1:Option": "JP_Post_YuPacket"
+            "ShippingService-1:Option": userInput.shipping === '210' ? 'JP_Post_YuPacket' : (userInput.shipping === '370' ? 'JP_Post_LetterPackLight' : 'JP_Post_LetterPackPlus')
         };
         return headers.map(h => `"${(data[h] || '').toString().replace(/"/g, '""')}"`).join(',');
     });
@@ -91,8 +91,17 @@ module.exports = (sessions) => {
                         const m = allFiles.filter(f => f.name.startsWith('M')).sort((a,b) => collator.compare(a.name, b.name));
                         const j = allFiles.filter(f => f.name.startsWith('J')).sort((a,b) => collator.compare(a.name, b.name));
                         const d = allFiles.filter(f => f.name.startsWith('D')).sort((a,b) => collator.compare(a.name, b.name));
-                        // webViewLinkは直接表示できないため、Google DriveのファイルプレビューURLを生成
+                        
                         const allImageUrls = [...m, ...j, ...d].map(f => `https://drive.google.com/file/d/${f.id}/view`);
+
+                        // J1画像のIDをaiDataに追加して、フロントエンドで使えるようにする
+                        const j1File = j.find(f => f.name.startsWith('J1_'));
+                        if (j1File) {
+                            aiData.J1_FileId = j1File.id;
+                        } else if (j.length > 0) {
+                            aiData.J1_FileId = j[0].id; // J1がなければ最初のJ画像をメインに
+                        }
+
 
                         Object.assign(record, { status: 'success', aiData, allImageUrls });
 
@@ -135,6 +144,17 @@ module.exports = (sessions) => {
         res.header('Content-Type', 'text/csv; charset=UTF-8');
         res.attachment(fileName);
         res.send('\uFEFF' + generateCsv(session.records)); // BOM付きUTF-8
+    });
+
+    // 画像表示用の中継ルート
+    router.get('/image/:fileId', async (req, res) => {
+        try {
+            const imageStream = await driveService.getImageStream(req.params.fileId);
+            imageStream.pipe(res);
+        } catch (error) {
+            console.error('Image fetch error:', error);
+            res.status(404).send('Image not found');
+        }
     });
 
     return router;

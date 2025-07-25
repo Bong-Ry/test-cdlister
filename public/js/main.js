@@ -11,35 +11,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createRow(record) {
         const isError = record.status === 'error';
+
+        // 表示するメイン画像を決定 (J1_を優先)
+        const j1Image = record.allImageUrls ? record.allImageUrls.find(url => url.includes(record.aiData?.J1_FileId)) : null;
+        // J1_が見つからなければ最初の画像
+        const mainImageUrl = j1Image ? `/image/${record.aiData.J1_FileId}` : (record.allImageUrls && record.allImageUrls.length > 0 ? `/image/${record.allImageUrls[0].split('/d/')[1].split('/')[0]}` : '');
+
         const title = record.aiData?.Title || record.folderName || '取得エラー';
         const artist = record.aiData?.Artist || 'N/A';
         const notes = record.aiData?.editionNotes || '';
         
+        // 価格のラジオボタンを生成
+        const priceOptions = ['1200', '1500', '1800', '2500', '3000'];
+        const priceRadios = priceOptions.map((price, index) =>
+            `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price}円</label>`
+        ).join('');
+        
+        // 送料のプルダウンを生成
+        const shippingOptions = {'210': 'ゆうパケット', '370': 'レターパックライト', '520': 'レターパックプラス'};
+        const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name} (${price}円)</option>`).join('');
+
         return `
             <tr id="row-${record.id}" data-record-id="${record.id}" class="record-row">
                 <td class="status-cell">${isError ? `❌<br><small>${record.error || ''}</small>` : '✏️'}</td>
+                <td class="image-cell"><img src="${mainImageUrl}" alt="CD Image" class="main-record-image"></td>
                 <td class="info-cell">
                     <div class="info-input-group">
                         <label>${artist}</label>
-                        <textarea name="title" rows="3" ${isError ? 'disabled' : ''}>${title}</textarea>
+                        <textarea name="title" rows="4" ${isError ? 'disabled' : ''}>${title}</textarea>
+                    </div>
+                     <div class="info-input-group">
+                        <label>SKU (フォルダ名)</label>
+                        <span class="sku-display">${record.folderName}</span>
                     </div>
                 </td>
                 <td class="input-cell">
-                     <div class="input-section">
-                        <div class="input-group">
+                    <div class="input-section">
+                        <div class="input-group full-width">
                             <label>価格</label>
-                            <input type="number" name="price" placeholder="1500" ${isError ? 'disabled' : ''}>
+                            <div class="radio-group">${priceRadios}</div>
                         </div>
                         <div class="input-group">
                             <label>送料</label>
-                            <input type="number" name="shipping" value="210" ${isError ? 'disabled' : ''}>
+                            <select name="shipping" ${isError ? 'disabled' : ''}>${shippingSelect}</select>
                         </div>
                     </div>
                     <div class="input-group full-width" style="margin-top: 15px;">
                         <label>コメント (初回版情報など)</label>
                         <textarea name="comment" rows="3" ${isError ? 'disabled' : ''}>${notes}</textarea>
                     </div>
-                    <button class="btn btn-save" ${isError ? 'disabled' : ''} style="margin-top: 10px; float: right;">保存</button>
+                </td>
+                <td class="action-cell">
+                     <button class="btn btn-save" ${isError ? 'disabled' : ''}>保存</button>
                 </td>
             </tr>`;
     }
@@ -50,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = {
             title: row.querySelector('[name="title"]').value,
-            price: row.querySelector('[name="price"]').value,
+            price: row.querySelector(`input[name="price-${recordId}"]:checked`).value,
             shipping: row.querySelector('[name="shipping"]').value,
             comment: row.querySelector('[name="comment"]').value,
         };
@@ -63,12 +86,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === 'ok') {
                 row.querySelector('.status-cell').innerHTML = '✅';
                 row.classList.add('saved');
-                row.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+                row.querySelectorAll('input, textarea, button, select').forEach(el => el.disabled = true);
                 downloadBtn.style.display = 'inline-block';
             }
         });
     }
 
+    // (checkStatus関数は変更なし)
     function checkStatus() {
         fetch(`/status/${sessionId}`)
         .then(res => res.json())
@@ -84,6 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             session.records.forEach(record => {
+                // allImageUrlsからJ1のIDを取得してaiDataに一時的に追加
+                if (record.aiData && record.allImageUrls) {
+                    const j1File = (record.allImageUrls.find(url => url.includes('J1_')) || record.allImageUrls[0]);
+                    if(j1File) record.aiData.J1_FileId = j1File.split('/d/')[1].split('/')[0];
+                }
+
                 let row = document.getElementById(`row-${record.id}`);
                 if (!row && record.status !== 'pending') {
                     tableBody.insertAdjacentHTML('beforeend', createRow(record));
