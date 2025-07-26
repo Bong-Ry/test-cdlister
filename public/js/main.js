@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const shippingOptions = {'15': '15 USD', '25': '25 USD', '32': '32 USD'};
         const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name}</option>`).join('');
 
+        const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
+        const conditionOptionsHtml = conditionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+
         return `
             <tr id="row-${record.id}" data-record-id="${record.id}" class="record-row">
                 <td class="status-cell">${isError ? `❌<br><small>${record.error || ''}</small>` : `<span id="status-${record.id}">✏️</span>`}</td>
@@ -60,23 +63,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             <label>送料</label>
                             <select name="shipping" ${isError ? 'disabled' : ''}>${shippingSelect}</select>
                         </div>
+                        <div class="input-group">
+                            <label>Store Category</label>
+                            <select name="storeCategory" ${isError ? 'disabled' : ''}>
+                                <option value="4233877819">CD</option>
+                                <option value="4234611919">DVD</option>
+                            </select>
+                       </div>
                     </div>
                     <h3 class="section-title">状態</h3>
                     <div class="input-section">
-                        <div class="input-group">
-                            <label>ディスクの状態</label>
-                            <select name="condition" ${isError ? 'disabled' : ''}>
-                                <option value="1000">新品</option>
-                                <option value="3000" selected>中古</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                             <label>Store Category</label>
-                             <select name="storeCategory" ${isError ? 'disabled' : ''}>
-                                 <option value="4233877819">CD</option>
-                                 <option value="4234611919">DVD</option>
-                             </select>
-                        </div>
+                        <div class="input-group"><label>ケースの状態</label><select name="conditionCase" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
+                        <div class="input-group"><label>CDの状態</label><select name="conditionCd" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
+                        <div class="input-group"><label>OBIの状態</label><select name="conditionObi" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
                     </div>
                     <div class="input-group full-width" style="margin-top: 15px;">
                         <label>コメント (初回版情報など)</label>
@@ -98,9 +97,11 @@ document.addEventListener('DOMContentLoaded', () => {
             title: row.querySelector('[name="title"]').value,
             price: row.querySelector(`input[name="price-${recordId}"]:checked`).value,
             shipping: row.querySelector('[name="shipping"]').value,
-            condition: row.querySelector('[name="condition"]').value,
             storeCategory: row.querySelector('[name="storeCategory"]').value,
             comment: row.querySelector('[name="comment"]').value,
+            conditionCase: row.querySelector('[name="conditionCase"]').value,
+            conditionCd: row.querySelector('[name="conditionCd"]').value,
+            conditionObi: row.querySelector('[name="conditionObi"]').value,
         };
 
         fetch(`/save/${sessionId}/${recordId}`, {

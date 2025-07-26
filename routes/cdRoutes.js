@@ -3,41 +3,54 @@ const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 
-const descriptionTemplate = (aiData, userInput) => {
-    const tracklistHtml = aiData.Tracklist ? aiData.Tracklist.split(', ').map(track => `<div>${track.replace(/^\d+\.\s*/, '')}</div>`).join('') : 'N/A';
-    const conditionText = userInput.condition === '1000' ? 'New' : 'Used';
-
-    const fullHtml = `
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<div style="background-color: #f8f8f8; border: 1px solid #ddd; padding: 20px; font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="font-size: 24px; color: #d35400; font-weight: bold;">${aiData.Title}</h1>
-        <h2 style="font-size: 18px; color: #555; font-weight: normal;">${aiData.Artist}</h2>
-    </div>
-
-    <div style="border-top: 2px solid #d35400; padding-top: 15px;">
-        <h3 style="font-size: 16px; color: #d35400; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Item Description</h3>
-        <p>${userInput.comment || aiData.editionNotes || ''}</p>
-        <p><b>Label:</b> ${aiData.RecordLabel}</p>
-        <p><b>Catalog Number:</b> ${aiData.MPN}</p>
-        <p><b>Country:</b> ${aiData.Country}</p>
-        <p><b>Released:</b> ${aiData.Released}</p>
-    </div>
-
-    <div style="margin-top: 20px;">
-        <h3 style="font-size: 16px; color: #d35400; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Condition</h3>
-        <p><b>Disc:</b> ${conditionText}</p>
-        <p><b>Case:</b> ${conditionText}</p>
-        <p><b>OBI:</b> ${conditionText}</p>
-    </div>
-
-    <div style="margin-top: 20px;">
-        <h3 style="font-size: 16px; color: #d35400; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Tracklist</h3>
-        ${tracklistHtml}
-    </div>
-</div>
-`;
-    return fullHtml.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
+// 新しい商品説明テンプレート
+const descriptionTemplate = ({ aiData, userInput }) => {
+    const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; color: #333;">
+        <h1 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; font-size: 24px;">${userInput.title}</h1>
+        <div style="display: flex; flex-wrap: wrap; margin-top: 20px;">
+            <div style="flex: 1; min-width: 300px; padding: 10px;">
+                <h2 style="color: #2c5282; font-size: 20px;">Condition</h2>
+                <ul style="list-style-type: disc; padding-left: 20px;">
+                    <li style="margin-bottom: 10px;">Case: ${userInput.conditionCase}</li>
+                    <li style="margin-bottom: 10px;">CD: ${userInput.conditionCd}</li>
+                    <li style="margin-bottom: 10px;">OBI: ${userInput.conditionObi}</li>
+                </ul>
+                <h2 style="color: #2c5282; font-size: 20px;">Key Features</h2>
+                <ul style="list-style-type: disc; padding-left: 20px;">
+                    <li style="margin-bottom: 10px;">${userInput.comment || aiData.editionNotes || 'Please check the images for details.'}</li>
+                    <li style="margin-bottom: 10px;">Artist: ${aiData.Artist || 'N/A'}</li>
+                    <li style="margin-bottom: 10px;">Format: ${aiData.Format || 'CD'}</li>
+                    <li style="margin-bottom: 10px;">Genre: ${aiData.Genre || 'N/A'}</li>
+                </ul>
+            </div>
+            <div style="flex: 1; min-width: 300px; padding: 10px;">
+                <h2 style="color: #2c5282; font-size: 20px;">Specifications</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Brand</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${aiData.RecordLabel || 'No Brand'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Country</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${aiData.Country || 'Japan'}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div style="margin-top: 20px;">
+            <h2 style="color: #2c5282; font-size: 20px;">Product Description</h2>
+            <p style="line-height: 1.6;">
+                If you have any questions or request about items, please feel free to ask us. Thank you!
+            </p>
+            <h2 style="color: #2c5282; font-size: 20px; margin-top: 20px;">Shipping</h2>
+            <p>Shipping by FedEx, DHL, or EMS.</p>
+            <h2 style="color: #2c5282; font-size: 20px; margin-top: 20px;">International Buyers - Please Note:</h2>
+            <p>Import duties, taxes, and charges are not included in the item price or shipping cost. These charges are the buyer's responsibility. Please check with your country's customs office to determine what these additional costs will be prior to bidding or buying.</p>
+            <p>Thank you for your understanding.</p>
+        </div>
+    </div>`;
+    return html.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
 };
 
 
@@ -56,16 +69,19 @@ const generateCsv = (records) => {
 
         const shippingCost = parseFloat(userInput.shipping).toFixed(2);
         const shippingProfileName = `#${shippingCost}USD-DHL FedEx 00.00 - 06.50kg`;
+        
+        const conditionId = userInput.conditionCd === 'New' ? '1000' : '3000';
+        const inlayCondition = userInput.conditionCd === 'New' ? 'Mint (M)' : 'Near Mint (NM or M-)';
 
         const data = {
             "Action(SiteID=US|Country=JP|Currency=USD|Version=1197)": "Add",
             "CustomLabel": customLabel,
             "ItemID": "",
-            "ConditionID": userInput.condition,
-            "ConditionDescription": descriptionTemplate(aiData, userInput),
+            "ConditionID": conditionId,
+            "ConditionDescription": descriptionTemplate({ aiData, userInput }),
             "Category": "176984",
             "StoreCategory": userInput.storeCategory,
-            "Title": `【${userInput.condition === '1000' ? 'New' : 'Used'}】 ${userInput.title} ${aiData.Artist} ${aiData.MPN} CD ${aiData.Country} OBI`,
+            "Title": `【${conditionId === '1000' ? 'New' : 'Used'}】 ${userInput.title} ${aiData.Artist} ${aiData.MPN} CD ${aiData.Country} OBI`,
             "SubTitle": "",
             "Relationship": "",
             "RelationshipDetails": "",
@@ -86,7 +102,7 @@ const generateCsv = (records) => {
             "C:Edition": aiData.isFirstEdition ? 'Limited Edition' : '',
             "C:Format": "CD",
             "C:Genre": aiData.Genre,
-            "C:Inlay Condition": userInput.condition === '1000' ? "Mint (M)" : "Near Mint (NM or M-)",
+            "C:Inlay Condition": inlayCondition,
             "C:Record Label": aiData.RecordLabel,
             "C:Release Title": aiData.Title,
             "C:Release Year": aiData.Released,
@@ -182,7 +198,17 @@ module.exports = (sessions) => {
         const record = session?.records.find(r => r.id === recordId);
         if (!record) return res.status(404).json({ error: 'Record not found' });
         
-        record.userInput = req.body;
+        // 新しい入力データを保存
+        record.userInput = {
+            title:         req.body.title,
+            price:         req.body.price,
+            shipping:      req.body.shipping,
+            storeCategory: req.body.storeCategory,
+            comment:       req.body.comment,
+            conditionCase: req.body.conditionCase,
+            conditionCd:   req.body.conditionCd,
+            conditionObi:  req.body.conditionObi,
+        };
         record.status = 'saved';
         
         await driveService.renameFolder(record.folderId, `済 ${record.folderName}`);
