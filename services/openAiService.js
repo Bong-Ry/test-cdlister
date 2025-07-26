@@ -21,7 +21,7 @@ const PROMPT_TEXT = `
 - Format: "CD, Album, Reissue" のような詳細なフォーマット。
 - Country: リリースされた国。
 - Released: リリース年（西暦）。
-- Tracklist: "1. 曲名1, 2. 曲名2, 3. 曲名3..." という形式で全トラックリストを記載。
+- Tracklist: "1. 曲名1, 2. 曲名2, 3. 曲名3..." という形式で全トラックリストを記載。曲名は英語で記載してください。
 - isFirstEdition: 初回限定版かどうかを true/false で自動判別。
 - hasBonus: 特典（ボーナストラック、ステッカー等）付きかどうかを true/false で自動判別。
 - editionNotes: 初回版や特典に関する補足情報（例: "First Press Limited Edition with bonus sticker."）。

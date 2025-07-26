@@ -90,8 +90,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                     <h3 class="section-title">状態</h3>
                     <div class="input-section">
+                        <div class="input-group">
+                            <label>出品コンディション (新品/中古)</label>
+                            <select name="conditionId" ${isError ? 'disabled' : ''}>
+                                <option value="1000">新品</option>
+                                <option value="3000" selected>中古</option>
+                            </select>
+                        </div>
                         <div class="input-group"><label>ケースの状態</label><select name="conditionCase" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
-                        <div class="input-group"><label>CDの状態</label><select name="conditionCd" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
                         <div class="input-group"><label>OBIの状態</label><select name="conditionObi" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
                     </div>
                     <div class="input-group full-width" style="margin-top: 15px;">
@@ -116,8 +122,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             shipping: row.querySelector('[name="shipping"]').value,
             storeCategory: row.querySelector('[name="storeCategory"]').value,
             comment: row.querySelector('[name="comment"]').value,
+            conditionId: row.querySelector('[name="conditionId"]').value, // 新しいプルダウンの値を取得
             conditionCase: row.querySelector('[name="conditionCase"]').value,
-            conditionCd: row.querySelector('[name="conditionCd"]').value,
+            conditionCd: row.querySelector('[name="conditionId"]').value === '1000' ? 'New' : 'Used', // ConditionIDに基づいてCDの状態を設定
             conditionObi: row.querySelector('[name="conditionObi"]').value,
         };
 
