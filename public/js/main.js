@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     if (typeof sessionId === 'undefined') return;
 
     const tableBody          = document.querySelector('#results-table tbody');
@@ -11,6 +11,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorMessage       = document.getElementById('error-message');
     const resultsContainer   = document.getElementById('results-table-container');
     const downloadBtn        = document.getElementById('download-csv-btn');
+
+    // カテゴリ情報を保持する変数を定義
+    let storeCategories = [];
+
+    // サーバーからカテゴリ情報を取得
+    try {
+        const response = await fetch('/categories');
+        if (!response.ok) {
+            throw new Error('Failed to fetch categories');
+        }
+        storeCategories = await response.json();
+    } catch (error) {
+        console.error(error);
+        errorMessage.textContent = 'カテゴリ情報の取得に失敗しました。';
+        errorMessage.style.display = 'block';
+    }
+
 
     function createRow(record) {
         const isError = record.status === 'error';
@@ -33,6 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
         const conditionOptionsHtml = conditionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+
+        // 取得したカテゴリ情報でプルダウンを生成
+        const storeCategoryOptions = storeCategories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
 
         return `
             <tr id="row-${record.id}" data-record-id="${record.id}" class="record-row">
@@ -64,11 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <select name="shipping" ${isError ? 'disabled' : ''}>${shippingSelect}</select>
                         </div>
                         <div class="input-group">
-                            <label>Store Category</label>
-                            <select name="storeCategory" ${isError ? 'disabled' : ''}>
-                                <option value="4233877819">CD</option>
-                                <option value="4234611919">DVD</option>
-                            </select>
+                            <label>カテゴリー</label>
+                            <select name="storeCategory" ${isError ? 'disabled' : ''}>${storeCategoryOptions}</select>
                        </div>
                     </div>
                     <h3 class="section-title">状態</h3>

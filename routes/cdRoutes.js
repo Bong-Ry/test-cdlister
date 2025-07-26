@@ -152,6 +152,16 @@ module.exports = (sessions) => {
 
     router.get('/', (req, res) => res.render('index'));
 
+    // カテゴリ取得用のAPIエンドポイントを追加
+    router.get('/categories', async (req, res) => {
+        try {
+            const categories = await driveService.getStoreCategories();
+            res.json(categories);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to retrieve categories' });
+        }
+    });
+
     router.post('/process', async (req, res) => {
         const parentFolderUrl = req.body.parentFolderUrl;
         if (!parentFolderUrl) return res.redirect('/');
@@ -230,7 +240,6 @@ module.exports = (sessions) => {
         const record = session?.records.find(r => r.id === recordId);
         if (!record) return res.status(404).json({ error: 'Record not found' });
         
-        // 新しい入力データを保存
         record.userInput = req.body;
         record.status = 'saved';
         

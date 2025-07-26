@@ -2,13 +2,48 @@ const { google } = require('googleapis');
 const path = require('path');
 
 const KEY_FILE_PATH = path.join(__dirname, '..', 'service-account-key.json');
-const SCOPES = ['https://www.googleapis.com/auth/drive'];
+// スプレッドシート読み取りのスコープを追加
+const SCOPES = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/spreadsheets.readonly'
+];
 
 async function getDriveClient() {
     const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
     const client = await auth.getClient();
     return google.drive({ version: 'v3', auth: client });
 }
+
+// スプレッドシートからカテゴリを取得する関数を追加
+async function getStoreCategories() {
+    const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: client });
+
+    try {
+        const spreadsheetId = '1pGXjlYl29r1KIIPiIu0N4gXKdGquhIZe3UjH_QApwfA';
+        const range = 'Category-CD!A2:B';
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range,
+        });
+
+        const rows = response.data.values;
+        if (rows && rows.length) {
+            return rows
+                .filter(row => row[0] && row[1]) // A列とB列の両方に値がある行のみを対象
+                .map(row => ({
+                    name: row[0], // A列の値
+                    id: row[1],   // B列の値
+                }));
+        }
+        return [];
+    } catch (err) {
+        console.error('The API returned an error: ' + err);
+        throw new Error('Failed to retrieve categories from spreadsheet.');
+    }
+}
+
 
 function getFolderIdFromUrl(url) {
     const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
@@ -92,5 +127,6 @@ module.exports = {
     getAllImageFiles,
     downloadFile,
     getImageStream,
-    renameFolder
+    renameFolder,
+    getStoreCategories // 追加
 };
