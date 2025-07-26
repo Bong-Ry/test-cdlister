@@ -18,7 +18,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ルーターにセッション管理機能を渡します
-app.use('/', cdRoutes(sessions));
+const router = cdRoutes(sessions);
+app.use('/', router);
 
 // Start Server
 app.listen(PORT, () => {
