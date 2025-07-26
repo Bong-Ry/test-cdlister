@@ -1,11 +1,9 @@
-const express = require('express');
+kconst express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 
-// 新しい商品説明テンプレート
 const descriptionTemplate = ({ aiData, userInput }) => {
-    // トラックリストを番号付きリストのHTMLに変換
     const tracklistHtml = aiData.Tracklist 
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
         : '<li>N/A</li>';
@@ -59,7 +57,6 @@ const descriptionTemplate = ({ aiData, userInput }) => {
             <p>Thank you for your understanding.</p>
         </div>
     </div>`;
-    // minify html
     return html.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
 };
 
@@ -81,11 +78,17 @@ const generateCsv = (records) => {
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, allImageUrls, customLabel } = r;
 
-        // 送料が整数の場合は小数点以下を表示しない
         const shippingCost = parseFloat(userInput.shipping);
         const shippingProfileName = `#${shippingCost}USD-DHL FedEx 00.00 - 06.50kg`;
         
-        const conditionId = userInput.conditionCd === 'New' ? '1000' : '3000';
+        const conditionId = userInput.conditionId;
+
+        // ★★★ 修正箇所 ★★★
+        // PicURLの形式を変換
+        const picURLs = allImageUrls.map(url => {
+            const fileId = url.split('/d/')[1].split('/')[0];
+            return `https://drive.google.com/uc?export=view&id=${fileId}`;
+        }).join('|');
 
         const data = {
             "Action(CC=Cp1252)": "Add",
@@ -95,7 +98,7 @@ const generateCsv = (records) => {
             "Title": `【${conditionId === '1000' ? 'New' : 'Used'}】 ${userInput.title} ${aiData.Artist} ${aiData.MPN} CD ${aiData.Country} OBI`,
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
-            "PicURL": allImageUrls.join('|'),
+            "PicURL": picURLs, // ★★★ 修正箇所 ★★★
             "UPC": "NA",
             "Category": "176984",
             "PayPalAccepted": "1",
@@ -128,7 +131,7 @@ const generateCsv = (records) => {
             "C:CD Grading": userInput.conditionCd,
             "C:Case Type": "Jewel Case: Standard",
             "C:Case Condition": userInput.conditionCase,
-            "C:Inlay Condition": userInput.conditionObi, // OBIの状態をインレイとして扱う
+            "C:Inlay Condition": userInput.conditionObi,
             "C:Country/Region of Manufacture": aiData.Country,
             "C:Features": userInput.conditionObi !== 'なし' ? 'OBI' : '',
             "C:Producer": "NA", "C:Language": "NA", "C:Instrument": "NA", "C:Occasion": "NA", "C:Era": "NA",
@@ -146,7 +149,7 @@ const generateCsv = (records) => {
     return [headerRow, ...rows].join('\r\n');
 };
 
-
+// ( ... 以下、module.exportsから末尾までのコードは変更ありません ... )
 module.exports = (sessions) => {
     const router = express.Router();
 
