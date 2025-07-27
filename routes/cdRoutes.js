@@ -3,7 +3,9 @@ const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 
+// ( ... descriptionTemplate は変更なし ... )
 const descriptionTemplate = ({ aiData, userInput }) => {
+    // トラックリストを番号付きリストのHTMLに変換
     const tracklistHtml = aiData.Tracklist 
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
         : '<li>N/A</li>';
@@ -83,22 +85,34 @@ const generateCsv = (records) => {
         
         const conditionId = userInput.conditionId;
 
-        // ★★★ 修正箇所 ★★★
-        // PicURLの形式を変換
         const picURLs = allImageUrls.map(url => {
             const fileId = url.split('/d/')[1].split('/')[0];
             return `https://drive.google.com/uc?export=view&id=${fileId}`;
         }).join('|');
+        
+        // ★★★ タイトル生成ロジックの修正 ★★★
+        const titleParts = [
+            userInput.title,
+            aiData.Artist,
+            aiData.MPN,
+            'CD',
+            aiData.Country
+        ];
+        if (userInput.conditionObi !== 'なし') {
+            titleParts.push('w/obi');
+        }
+        const newTitle = titleParts.join(' ');
+
 
         const data = {
             "Action(CC=Cp1252)": "Add",
             "CustomLabel": customLabel,
             "StartPrice": userInput.price,
             "ConditionID": conditionId,
-            "Title": `【${conditionId === '1000' ? 'New' : 'Used'}】 ${userInput.title} ${aiData.Artist} ${aiData.MPN} CD ${aiData.Country} OBI`,
+            "Title": newTitle, // ★★★ 修正箇所 ★★★
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
-            "PicURL": picURLs, // ★★★ 修正箇所 ★★★
+            "PicURL": picURLs,
             "UPC": "NA",
             "Category": "176984",
             "PayPalAccepted": "1",
@@ -155,7 +169,6 @@ module.exports = (sessions) => {
 
     router.get('/', (req, res) => res.render('index'));
 
-    // カテゴリ取得用のAPIエンドポイントを追加
     router.get('/categories', async (req, res) => {
         try {
             const categories = await driveService.getStoreCategories();

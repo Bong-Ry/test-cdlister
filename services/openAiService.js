@@ -1,42 +1,42 @@
 const OpenAI = require('openai');
 
-// Renderの環境変数からAPIキーを読み込む
+// Load API key from Render's environment variables
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, 
 });
 
-// CDの要件に合わせたプロンプト
+// Prompt tailored to CD requirements
 const PROMPT_TEXT = `
-あなたはプロのCD鑑定士です。
-提供されたCDのジャケットや帯、盤面の画像から、Discogsのデータベースを参照して、このCDを1件だけ特定してください。
-そして、以下のJSON形式に従って、すべての項目を英語で出力してください。
+You are a professional CD appraiser.
+From the provided images of the CD jacket, obi, and disc, please identify only one specific CD by referencing the Discogs database.
+Then, output all items in English according to the following JSON format.
 
-- Title: アルバムまたはシングルの正式タイトル。
-- Artist: アーティストのローマ字表記。
-- Type: このCDが "Album" か "Single" かを自動で判別。
-- Genre: 音楽ジャンル。
-- Style: より詳細な音楽スタイル。
-- RecordLabel: レーベル名。
-- CatalogNumber: カタログ番号。
-- Format: "CD, Album, Reissue" のような詳細なフォーマット。
-- Country: リリースされた国。
-- Released: リリース年（西暦）。
-- Tracklist: "1. 曲名1, 2. 曲名2, 3. 曲名3..." という形式で全トラックリストを記載。曲名は英語で記載してください。
-- isFirstEdition: 初回限定版かどうかを true/false で自動判別。
-- hasBonus: 特典（ボーナストラック、ステッカー等）付きかどうかを true/false で自動判別。
-- editionNotes: 初回版や特典に関する補足情報（例: "First Press Limited Edition with bonus sticker."）。
-- DiscogsUrl: 特定の際に参照したDiscogsの正確なURL。
-- MPN: CatalogNumberと同じ値を出力。
+- Title: The official title of the album or single.
+- Artist: The artist's name in Roman characters.
+- Type: Automatically determine if this CD is an "Album" or a "Single".
+- Genre: The music genre.
+- Style: A more detailed music style.
+- RecordLabel: The name of the record label.
+- CatalogNumber: The catalog number.
+- Format: Detailed format like "CD, Album, Reissue".
+- Country: The country where it was released.
+- Released: The release year (in A.D.).
+- Tracklist: List all tracks in the format "1. Track Name 1, 2. Track Name 2, 3. Track Name 3...". Please write the track names in English.
+- isFirstEdition: Automatically determine if it is a first press limited edition with true/false.
+- hasBonus: Automatically determine if it comes with bonuses (bonus tracks, stickers, etc.) with true/false.
+- editionNotes: Supplementary information about the first edition or bonuses (e.g., "First Press Limited Edition with bonus sticker.").
+- DiscogsUrl: The exact Discogs URL referenced during identification.
+- MPN: Output the same value as CatalogNumber.
 
-必ず指定されたJSONフォーマットで回答してください。他のテキストは含めないでください。
+Please be sure to respond in the specified JSON format. Do not include any other text.
 `;
 
 async function analyzeCd(imageBuffers) {
     if (!imageBuffers || imageBuffers.length === 0) {
-        throw new Error('画像データがありません。');
+        throw new Error('No image data provided.');
     }
 
-    // 画像データをBase64形式に変換
+    // Convert image data to Base64 format
     const imageMessages = imageBuffers.map(buffer => {
         return {
             type: 'image_url',
@@ -46,7 +46,7 @@ async function analyzeCd(imageBuffers) {
 
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini', // 高性能かつ安価なモデルを指定
+            model: 'gpt-4o-mini', // Specify a high-performance and cost-effective model
             messages: [
                 {
                     role: 'user',
@@ -64,9 +64,9 @@ async function analyzeCd(imageBuffers) {
 
     } catch (error) {
         console.error('OpenAI API Error:', error.response ? error.response.data : error.message);
-        throw new Error('OpenAI APIでの解析に失敗しました。');
+        throw new Error('Failed to analyze with OpenAI API.');
     }
 }
 
-// 他のファイルで使えるようにエクスポート
+// Export for use in other files
 module.exports = { analyzeCd };

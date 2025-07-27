@@ -12,10 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const resultsContainer   = document.getElementById('results-table-container');
     const downloadBtn        = document.getElementById('download-csv-btn');
 
-    // カテゴリ情報を保持する変数を定義
     let storeCategories = [];
 
-    // サーバーからカテゴリ情報を取得
     try {
         const response = await fetch('/categories');
         if (!response.ok) {
@@ -51,8 +49,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
         const conditionOptionsHtml = conditionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
-        // 取得したカテゴリ情報でプルダウンを生成
         const storeCategoryOptions = storeCategories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+
+        // ★★★ 新しいコンディションIDの選択肢 ★★★
+        const conditionIdOptions = `
+            <option value="1000">Brand New</option>
+            <option value="2750">Like New</option>
+            <option value="4000">Very Good</option>
+            <option value="5000">Good</option>
+            <option value="6000">Acceptable</option>
+        `;
 
         return `
             <tr id="row-${record.id}" data-record-id="${record.id}" class="record-row">
@@ -91,11 +97,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <h3 class="section-title">状態</h3>
                     <div class="input-section">
                         <div class="input-group">
-                            <label>出品コンディション (新品/中古)</label>
-                            <select name="conditionId" ${isError ? 'disabled' : ''}>
-                                <option value="1000">新品</option>
-                                <option value="3000" selected>中古</option>
-                            </select>
+                            <label>出品コンディション</label>
+                            <select name="conditionId" ${isError ? 'disabled' : ''}>${conditionIdOptions}</select>
                         </div>
                         <div class="input-group"><label>ケースの状態</label><select name="conditionCase" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
                         <div class="input-group"><label>OBIの状態</label><select name="conditionObi" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
@@ -122,9 +125,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             shipping: row.querySelector('[name="shipping"]').value,
             storeCategory: row.querySelector('[name="storeCategory"]').value,
             comment: row.querySelector('[name="comment"]').value,
-            conditionId: row.querySelector('[name="conditionId"]').value, // 新しいプルダウンの値を取得
+            conditionId: row.querySelector('[name="conditionId"]').value,
             conditionCase: row.querySelector('[name="conditionCase"]').value,
-            conditionCd: row.querySelector('[name="conditionId"]').value === '1000' ? 'New' : 'Used', // ConditionIDに基づいてCDの状態を設定
+            conditionCd: row.querySelector('[name="conditionId"] option:checked').text, // 選択されたテキスト (Brand Newなど)
             conditionObi: row.querySelector('[name="conditionObi"]').value,
         };
 
