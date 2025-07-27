@@ -5,13 +5,13 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, 
 });
 
-// Prompt tailored to CD requirements
+// Prompt tailored to CD requirements with stronger English translation enforcement
 const PROMPT_TEXT = `
 You are a professional CD appraiser.
 From the provided images of the CD jacket, obi, and disc, please identify only one specific CD by referencing the Discogs database.
-Then, output all items in English according to the following JSON format.
+Then, output all items in English according to the following JSON format. If the original data is in another language, you MUST translate it to English.
 
-- Title: The official title of the album or single.
+- Title: The official title of the album or single. This MUST be translated into English.
 - Artist: The artist's name in Roman characters.
 - Type: Automatically determine if this CD is an "Album" or a "Single".
 - Genre: The music genre.
@@ -21,7 +21,7 @@ Then, output all items in English according to the following JSON format.
 - Format: Detailed format like "CD, Album, Reissue".
 - Country: The country where it was released.
 - Released: The release year (in A.D.).
-- Tracklist: List all tracks in the format "1. Track Name 1, 2. Track Name 2, 3. Track Name 3...". Please write the track names in English.
+- Tracklist: List all tracks in the format "1. Track Name 1, 2. Track Name 2, 3. Track Name 3...". All track names MUST be translated into English.
 - isFirstEdition: Automatically determine if it is a first press limited edition with true/false.
 - hasBonus: Automatically determine if it comes with bonuses (bonus tracks, stickers, etc.) with true/false.
 - editionNotes: Supplementary information about the first edition or bonuses (e.g., "First Press Limited Edition with bonus sticker.").
