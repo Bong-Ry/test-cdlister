@@ -14,7 +14,7 @@ async function getDriveClient() {
     return google.drive({ version: 'v3', auth: client });
 }
 
-// スプレッドシートからカテゴリを取得する関数を追加
+// スプレッドシートからカテゴリを取得する関数
 async function getStoreCategories() {
     const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
     const client = await auth.getClient();
@@ -41,6 +41,31 @@ async function getStoreCategories() {
     } catch (err) {
         console.error('The API returned an error: ' + err);
         throw new Error('Failed to retrieve categories from spreadsheet.');
+    }
+}
+
+// スプレッドシートから送料を取得する関数
+async function getShippingCosts() {
+    const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: client });
+
+    try {
+        const spreadsheetId = '1pGXjlYl29r1KIIPiIu0N4gXKdGquhIZe3UjH_QApwfA';
+        const range = '送料管理!A2:A';
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range,
+        });
+
+        const rows = response.data.values;
+        if (rows && rows.length) {
+            return rows.flat().filter(cost => cost && cost.trim() !== ''); // 値が存在する行のみを対象
+        }
+        return [];
+    } catch (err) {
+        console.error('The API returned an error: ' + err);
+        throw new Error('Failed to retrieve shipping costs from spreadsheet.');
     }
 }
 
@@ -128,5 +153,6 @@ module.exports = {
     downloadFile,
     getImageStream,
     renameFolder,
-    getStoreCategories // 追加
+    getStoreCategories,
+    getShippingCosts // 追加
 };

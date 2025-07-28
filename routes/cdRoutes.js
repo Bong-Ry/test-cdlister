@@ -3,9 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 
-// ( ... descriptionTemplate は変更なし ... )
 const descriptionTemplate = ({ aiData, userInput }) => {
-    // トラックリストを番号付きリストのHTMLに変換
     const tracklistHtml = aiData.Tracklist 
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
         : '<li>N/A</li>';
@@ -62,7 +60,6 @@ const descriptionTemplate = ({ aiData, userInput }) => {
     return html.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
 };
 
-
 const generateCsv = (records) => {
     const headers = [
         "Action(CC=Cp1252)", "CustomLabel", "StartPrice", "ConditionID", "Title", "Description", "C:Brand", "PicURL",
@@ -92,11 +89,8 @@ const generateCsv = (records) => {
         
         // ★★★ タイトル生成ロジックの修正 ★★★
         const titleParts = [
-            userInput.title,
-            aiData.Artist,
-            aiData.MPN,
-            'CD',
-            aiData.Country
+            aiData.Title, // AIで抽出したタイトル
+            aiData.Artist
         ];
         if (userInput.conditionObi !== 'なし') {
             titleParts.push('w/obi');
@@ -109,7 +103,7 @@ const generateCsv = (records) => {
             "CustomLabel": customLabel,
             "StartPrice": userInput.price,
             "ConditionID": conditionId,
-            "Title": newTitle, // ★★★ 修正箇所 ★★★
+            "Title": newTitle, // ★★★ 修正後のタイトル ★★★
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
             "PicURL": picURLs,
@@ -163,7 +157,6 @@ const generateCsv = (records) => {
     return [headerRow, ...rows].join('\r\n');
 };
 
-// ( ... 以下、module.exportsから末尾までのコードは変更ありません ... )
 module.exports = (sessions) => {
     const router = express.Router();
 
@@ -174,7 +167,19 @@ module.exports = (sessions) => {
             const categories = await driveService.getStoreCategories();
             res.json(categories);
         } catch (error) {
+            console.error('Category fetch error:', error.message);
             res.status(500).json({ error: 'Failed to retrieve categories' });
+        }
+    });
+
+    // ★★★ 送料情報を取得するAPIエンドポイントを追加 ★★★
+    router.get('/shipping-costs', async (req, res) => {
+        try {
+            const shippingCosts = await driveService.getShippingCosts();
+            res.json(shippingCosts);
+        } catch (error) {
+            console.error('Shipping costs fetch error:', error.message);
+            res.status(500).json({ error: 'Failed to retrieve shipping costs' });
         }
     });
 

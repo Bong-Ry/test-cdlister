@@ -13,16 +13,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const downloadBtn        = document.getElementById('download-csv-btn');
 
     let storeCategories = [];
+    let shippingCosts = []; // 送料を格納する配列
 
     try {
-        const response = await fetch('/categories');
-        if (!response.ok) {
+        // カテゴリ情報を取得
+        const categoryResponse = await fetch('/categories');
+        if (!categoryResponse.ok) {
             throw new Error('Failed to fetch categories');
         }
-        storeCategories = await response.json();
+        storeCategories = await categoryResponse.json();
+
+        // ★★★ 送料情報を取得 ★★★
+        const shippingResponse = await fetch('/shipping-costs');
+        if (!shippingResponse.ok) {
+            throw new Error('Failed to fetch shipping costs');
+        }
+        shippingCosts = await shippingResponse.json();
+
     } catch (error) {
         console.error(error);
-        errorMessage.textContent = 'カテゴリ情報の取得に失敗しました。';
+        errorMessage.textContent = 'カテゴリまたは送料情報の取得に失敗しました。';
         errorMessage.style.display = 'block';
     }
 
@@ -43,15 +53,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
         ).join('');
         
-        const shippingOptions = {'15': '15 USD', '25': '25 USD', '32': '32 USD'};
-        const shippingSelect = Object.entries(shippingOptions).map(([price, name]) => `<option value="${price}">${name}</option>`).join('');
+        // ★★★ スプレッドシートから取得した送料でプルダウンを生成 ★★★
+        const shippingSelect = shippingCosts.map(price => `<option value="${price}">${price} USD</option>`).join('');
 
         const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
         const conditionOptionsHtml = conditionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 
         const storeCategoryOptions = storeCategories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
 
-        // ★★★ 新しいコンディションIDの選択肢 ★★★
         const conditionIdOptions = `
             <option value="1000">Brand New</option>
             <option value="2750">Like New</option>
@@ -189,6 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setupEventListeners(row);
                 }
             });
+
 
             const total      = session.records.length;
             const processed  = session.records.filter(r => r.status !== 'pending').length;
