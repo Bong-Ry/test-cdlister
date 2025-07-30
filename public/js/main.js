@@ -49,12 +49,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const notes = record.aiData?.editionNotes || '';
 
         const priceOptions = ['29.99', '39.99', '59.99', '79.99', '99.99'];
+        
+        // ★★★ 価格オプションに「その他」を追加 ★★★
         const priceRadios  = priceOptions.map((price, index) =>
             `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
-        ).join('');
+        ).join('') + `<label class="radio-label"><input type="radio" name="price-${record.id}" value="other" ${isError ? 'disabled' : ''}> その他</label><input type="text" name="price-other-${record.id}" class="other-price-input" style="display:none; width: 80px; margin-left: 5px;" placeholder="価格" ${isError ? 'disabled' : ''}>`;
         
-        // ★★★ スプレッドシートから取得した送料でプルダウンを生成 ★★★
-        const shippingSelect = shippingCosts.map(price => `<option value="${price}">${price} USD</option>`).join('');
+        // ★★★ スプレッドシートから取得した送料でプルダウンを生成 (USDを削除) ★★★
+        const shippingSelect = shippingCosts.map(price => `<option value="${price}">${price}</option>`).join('');
 
         const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
         const conditionOptionsHtml = conditionOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
@@ -128,9 +130,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const recordId  = row.dataset.recordId;
         const statusEl  = document.getElementById(`status-${recordId}`);
 
+        // ★★★ 「その他」価格の処理を追加 ★★★
+        const priceRadio = row.querySelector(`input[name="price-${recordId}"]:checked`);
+        let price;
+        if (priceRadio.value === 'other') {
+            price = row.querySelector(`input[name="price-other-${recordId}"]`).value;
+        } else {
+            price = priceRadio.value;
+        }
+
         const data = {
             title: row.querySelector('[name="title"]').value,
-            price: row.querySelector(`input[name="price-${recordId}"]:checked`).value,
+            price: price, // 修正後の価格
             shipping: row.querySelector('[name="shipping"]').value,
             storeCategory: row.querySelector('[name="storeCategory"]').value,
             comment: row.querySelector('[name="comment"]').value,
@@ -171,6 +182,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         checkTitleLength();
         titleInput.addEventListener('input', checkTitleLength);
+        
+        // ★★★ 「その他」価格の表示・非表示を制御 ★★★
+        const recordId = row.dataset.recordId;
+        const priceRadios = row.querySelectorAll(`input[name="price-${recordId}"]`);
+        const otherPriceInput = row.querySelector(`input[name="price-other-${recordId}"]`);
+        priceRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.value === 'other') {
+                    otherPriceInput.style.display = 'inline-block';
+                } else {
+                    otherPriceInput.style.display = 'none';
+                }
+            });
+        });
     }
 
     modalClose.onclick = () => { modal.style.display = 'none'; };

@@ -77,8 +77,8 @@ const generateCsv = (records) => {
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, allImageUrls, customLabel } = r;
 
-        const shippingCost = parseFloat(userInput.shipping);
-        const shippingProfileName = `#${shippingCost}USD-DHL FedEx 00.00 - 06.50kg`;
+        // ★★★ 送料の値を直接使用するように変更 ★★★
+        const shippingProfileName = userInput.shipping;
         
         const conditionId = userInput.conditionId;
 
@@ -87,9 +87,8 @@ const generateCsv = (records) => {
             return `https://drive.google.com/uc?export=view&id=${fileId}`;
         }).join('|');
         
-        // ★★★ タイトル生成ロジックの修正 ★★★
         const titleParts = [
-            aiData.Title, // AIで抽出したタイトル
+            aiData.Title,
             aiData.Artist
         ];
         if (userInput.conditionObi !== 'なし') {
@@ -103,7 +102,7 @@ const generateCsv = (records) => {
             "CustomLabel": customLabel,
             "StartPrice": userInput.price,
             "ConditionID": conditionId,
-            "Title": newTitle, // ★★★ 修正後のタイトル ★★★
+            "Title": newTitle,
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
             "PicURL": picURLs,
@@ -113,7 +112,7 @@ const generateCsv = (records) => {
             "PayPalEmailAddress": "payAddress",
             "PaymentProfileName": "buy it now",
             "ReturnProfileName": "Seller 60days",
-            "ShippingProfileName": shippingProfileName,
+            "ShippingProfileName": shippingProfileName, // ★★★ 修正後の送料 ★★★
             "Country": "JP",
             "Location": "417-0816, Fuji Shizuoka",
             "Apply Profile Domestic": "0.0",
@@ -172,7 +171,6 @@ module.exports = (sessions) => {
         }
     });
 
-    // ★★★ 送料情報を取得するAPIエンドポイントを追加 ★★★
     router.get('/shipping-costs', async (req, res) => {
         try {
             const shippingCosts = await driveService.getShippingCosts();
