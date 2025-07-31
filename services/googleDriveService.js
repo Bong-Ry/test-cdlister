@@ -52,7 +52,7 @@ async function getShippingCosts() {
 
     try {
         const spreadsheetId = '1pGXjlYl29r1KIIPiIu0N4gXKdGquhIZe3UjH_QApwfA';
-        const range = '送料管理!A2:A';
+        const range = '送料管理!B2:B';
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId,
             range,
