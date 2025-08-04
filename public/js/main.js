@@ -42,20 +42,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const mainImageId = record.aiData?.J1_FileId || (record.allImageUrls && record.allImageUrls.length > 0 ? record.allImageUrls[0].split('/d/')[1].split('/')[0] : null);
         const mainImageUrl = mainImageId ? `/image/${mainImageId}` : 'https://via.placeholder.com/120';
-        
+
         const customLabel = record.customLabel || record.folderName;
         const title = record.aiData?.Title || record.folderName || '取得エラー';
         const artist = record.aiData?.Artist || 'N/A';
         const notes = record.aiData?.editionNotes || '';
 
         const priceOptions = ['29.99', '39.99', '59.99', '79.99', '99.99'];
-        
-        // ★★★ 価格オプションに「その他」を追加 ★★★
+
         const priceRadios  = priceOptions.map((price, index) =>
             `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
-        ).join('') + `<label class="radio-label"><input type="radio" name="price-${record.id}" value="other" ${isError ? 'disabled' : ''}> その他</label><input type="text" name="price-other-${record.id}" class="other-price-input" style="display:none; width: 80px; margin-left: 5px;" placeholder="価格" ${isError ? 'disabled' : ''}>`;
-        
-        // ★★★ スプレッドシートから取得した送料でプルダウンを生成 (USDを削除) ★★★
+        ).join('')
+        + `<label class="radio-label"><input type="radio" name="price-${record.id}" value="other" ${isError ? 'disabled' : ''}> その他</label>`
+        + `<input type="number" name="price-other-${record.id}" class="other-price-input" style="display:none;" placeholder="価格" ${isError ? 'disabled' : ''}>`;
+
         const shippingSelect = shippingCosts.map(price => `<option value="${price}">${price}</option>`).join('');
 
         const conditionOptions = ['New', 'NM', 'EX', 'VG+', 'VG', 'G', 'なし'];
@@ -83,11 +83,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div class="info-input-group">
                         <label>タイトル</label>
                         <textarea name="title" rows="4" class="title-input">${title}</textarea>
-                        <div class="title-warning" style="display: none;">※80文字以上になっているため修正が必要です。</div>
+                        <div class="title-warning" style="display: none; color: red; font-weight: bold;"></div>
                     </div>
                      <div class="info-input-group">
                         <label>アーティスト</label>
-                        <span>${artist}</span>
+                        <span class="artist-display">${artist}</span>
                     </div>
                 </td>
                 <td class="input-cell">
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <select name="conditionId" ${isError ? 'disabled' : ''}>${conditionIdOptions}</select>
                         </div>
                         <div class="input-group"><label>ケースの状態</label><select name="conditionCase" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
-                        <div class="input-group"><label>OBIの状態</label><select name="conditionObi" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
+                        <div class="input-group"><label>OBIの状態</label><select name="conditionObi" class="obi-select" ${isError ? 'disabled' : ''}>${conditionOptionsHtml}</select></div>
                     </div>
                     <div class="input-group full-width" style="margin-top: 15px;">
                         <label>コメント (初回版情報など)</label>
@@ -130,7 +130,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const recordId  = row.dataset.recordId;
         const statusEl  = document.getElementById(`status-${recordId}`);
 
-        // ★★★ 「その他」価格の処理を追加 ★★★
         const priceRadio = row.querySelector(`input[name="price-${recordId}"]:checked`);
         let price;
         if (priceRadio.value === 'other') {
@@ -141,13 +140,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const data = {
             title: row.querySelector('[name="title"]').value,
-            price: price, // 修正後の価格
+            price: price,
             shipping: row.querySelector('[name="shipping"]').value,
             storeCategory: row.querySelector('[name="storeCategory"]').value,
             comment: row.querySelector('[name="comment"]').value,
             conditionId: row.querySelector('[name="conditionId"]').value,
             conditionCase: row.querySelector('[name="conditionCase"]').value,
-            conditionCd: row.querySelector('[name="conditionId"] option:checked').text, // 選択されたテキスト (Brand Newなど)
+            conditionCd: row.querySelector('[name="conditionId"] option:checked').text,
             conditionObi: row.querySelector('[name="conditionObi"]').value,
         };
 
@@ -165,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    
+
     function setupEventListeners(row) {
         row.querySelector('.btn-save').addEventListener('click', handleSave);
         row.querySelector('.main-record-image').addEventListener('click', e => {
@@ -173,17 +172,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             modalImg.src = e.target.src;
         });
 
-        const titleInput   = row.querySelector('textarea[name="title"]');
-        const titleWarning = row.querySelector('.title-warning');
+        const titleInput    = row.querySelector('textarea[name="title"]');
+        const artistDisplay = row.querySelector('.artist-display');
+        const titleWarning  = row.querySelector('.title-warning');
+        const obiSelect     = row.querySelector('.obi-select');
 
         const checkTitleLength = () => {
-            titleWarning.style.display = titleInput.value.length > 80 ? 'block' : 'none';
+            const artistLength = artistDisplay.textContent.length;
+            const obiValue = obiSelect.value;
+            let maxLength = 80 - (artistLength + 1); // 80 - (artist + space)
+            if (obiValue !== 'なし') {
+                maxLength -= 5; // " w/obi"
+            }
+
+            if (titleInput.value.length > maxLength) {
+                titleWarning.textContent = `※タイトルの文字数制限(${maxLength}文字)を超えています。`;
+                titleWarning.style.display = 'block';
+            } else {
+                titleWarning.style.display = 'none';
+            }
         };
 
         checkTitleLength();
         titleInput.addEventListener('input', checkTitleLength);
-        
-        // ★★★ 「その他」価格の表示・非表示を制御 ★★★
+        obiSelect.addEventListener('change', checkTitleLength);
+
         const recordId = row.dataset.recordId;
         const priceRadios = row.querySelectorAll(`input[name="price-${recordId}"]`);
         const otherPriceInput = row.querySelector(`input[name="price-other-${recordId}"]`);
