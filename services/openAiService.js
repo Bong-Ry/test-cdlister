@@ -43,6 +43,8 @@ async function analyzeCd(imageBuffers) {
             image_url: { url: `data:image/jpeg;base64,${buffer.toString('base64')}` },
         };
     });
+    
+    let content; // content変数をtryブロックの外で宣言
 
     try {
         const response = await openai.chat.completions.create({
@@ -57,13 +59,26 @@ async function analyzeCd(imageBuffers) {
                 },
             ],
             response_format: { type: "json_object" },
+            // ★★★ 修正点：タイムアウトを120秒（ミリ秒単位）に設定 ★★★
+            timeout: 120 * 1000, 
         });
 
-        const content = response.choices[0].message.content;
-        return JSON.parse(content);
+        content = response.choices[0].message.content;
+
+        // JSON解析をtry...catchで囲み、エラー時に原因を特定しやすくします
+        try {
+            return JSON.parse(content);
+        } catch (parseError) {
+            console.error("=========================================");
+            console.error("JSON Parse Error. Raw content from OpenAI was:");
+            console.error(content);
+            console.error("=========================================");
+            throw new Error('Failed to parse JSON response from OpenAI.');
+        }
 
     } catch (error) {
-        console.error('OpenAI API Error:', error.response ? error.response.data : error.message);
+        // API自体のエラー
+        console.error('OpenAI API Call Error:', error.message);
         throw new Error('Failed to analyze with OpenAI API.');
     }
 }

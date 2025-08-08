@@ -100,14 +100,14 @@ async function getUnprocessedSubfolders(parentFolderUrl) {
 
 async function getImagesForAnalysis(folderId) {
     const drive = await getDriveClient();
-    let query = `'${folderId}' in parents and (name starts with 'J1_' or name starts with 'J2_' or name starts with 'D1_') and mimeType contains 'image/'`;
+    // ★★★ 修正点：'D1_'を検索条件から削除 ★★★
+    let query = `'${folderId}' in parents and (name starts with 'J1_' or name starts with 'J2_') and mimeType contains 'image/'`;
     let res = await drive.files.list({ q: query, fields: 'files(id, name)', orderBy: 'name' });
-    if (!res.data.files || !res.data.files.find(f => f.name.startsWith('D1_'))) {
-         query = `'${folderId}' in parents and (name starts with 'J1_' or name starts with 'J2_') and mimeType contains 'image/'`;
-         res = await drive.files.list({ q: query, fields: 'files(id, name)', orderBy: 'name' });
-    }
+    
+    // D1_の有無をチェックしていたロジックは不要なため削除しました
+
     if (!res.data.files || res.data.files.length === 0) {
-         throw new Error(`フォルダID: ${folderId} 内に解析対象の画像が見つかりません。`);
+         throw new Error(`フォルダID: ${folderId} 内に解析対象の画像(J1_, J2_)が見つかりません。`);
     }
     return res.data.files;
 }
