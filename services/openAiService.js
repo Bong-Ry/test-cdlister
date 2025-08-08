@@ -1,4 +1,4 @@
-kconst OpenAI = require('openai');
+const OpenAI = require('openai');
 
 // ★★★ 修正点：クライアント初期化時にタイムアウトを設定 ★★★
 const openai = new OpenAI({
