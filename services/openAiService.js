@@ -1,8 +1,9 @@
-const OpenAI = require('openai');
+kconst OpenAI = require('openai');
 
-// Load API key from Render's environment variables
+// ★★★ 修正点：クライアント初期化時にタイムアウトを設定 ★★★
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, 
+    timeout: 120 * 1000, // タイムアウトを120秒（2分）に設定
 });
 
 // Prompt tailored to CD requirements with stronger English translation enforcement
@@ -48,7 +49,7 @@ async function analyzeCd(imageBuffers) {
 
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini', // Specify a high-performance and cost-effective model
+            model: 'gpt-4o-mini',
             messages: [
                 {
                     role: 'user',
@@ -59,8 +60,7 @@ async function analyzeCd(imageBuffers) {
                 },
             ],
             response_format: { type: "json_object" },
-            // ★★★ 修正点：タイムアウトを120秒（ミリ秒単位）に設定 ★★★
-            timeout: 120 * 1000, 
+            // ★★★ ここにあったtimeoutの行は削除しました ★★★
         });
 
         content = response.choices[0].message.content;
@@ -85,3 +85,4 @@ async function analyzeCd(imageBuffers) {
 
 // Export for use in other files
 module.exports = { analyzeCd };
+
