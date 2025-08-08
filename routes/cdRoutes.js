@@ -3,6 +3,27 @@ const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 
+// ★★★ 追加：AIからのパイプ区切りテキストを解析するヘルパー関数 ★★★
+function parseAiResponse(responseText) {
+    const fields = [
+        "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
+        "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
+        "editionNotes", "DiscogsUrl", "MPN"
+    ];
+    const values = responseText.split('|').map(v => v.trim());
+    const aiData = {};
+    fields.forEach((field, index) => {
+        aiData[field] = values[index] || ''; // 見つからない場合は空文字をセット
+    });
+
+    // 文字列の 'true'/'false' をブール値に変換
+    aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
+    aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
+
+    return aiData;
+}
+
+
 const descriptionTemplate = ({ aiData, userInput }) => {
     const tracklistHtml = aiData.Tracklist 
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
@@ -77,11 +98,8 @@ const generateCsv = (records) => {
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, allImageUrls, customLabel } = r;
 
-        // ★★★ 送料の値を直接使用するように変更 ★★★
         const shippingProfileName = userInput.shipping;
-        
         const conditionId = userInput.conditionId;
-
         const picURLs = allImageUrls.map(url => {
             const fileId = url.split('/d/')[1].split('/')[0];
             return `https://drive.google.com/uc?export=view&id=${fileId}`;
@@ -95,7 +113,6 @@ const generateCsv = (records) => {
             titleParts.push('w/obi');
         }
         const newTitle = titleParts.join(' ');
-
 
         const data = {
             "Action(CC=Cp1252)": "Add",
@@ -112,7 +129,7 @@ const generateCsv = (records) => {
             "PayPalEmailAddress": "payAddress",
             "PaymentProfileName": "buy it now",
             "ReturnProfileName": "Seller 60days",
-            "ShippingProfileName": shippingProfileName, // ★★★ 修正後の送料 ★★★
+            "ShippingProfileName": shippingProfileName,
             "Country": "JP",
             "Location": "417-0816, Fuji Shizuoka",
             "Apply Profile Domestic": "0.0",
@@ -218,7 +235,9 @@ module.exports = (sessions) => {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
                         const imageBuffers = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
                         
-                        const aiData = await aiService.analyzeCd(imageBuffers);
+                        // ★★★ 修正点：AIからの応答を新しい関数でパースする ★★★
+                        const aiResponseText = await aiService.analyzeCd(imageBuffers);
+                        const aiData = parseAiResponse(aiResponseText);
                         
                         const allFiles = await driveService.getAllImageFiles(record.folderId);
                         const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });

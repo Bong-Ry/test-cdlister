@@ -1,35 +1,23 @@
 const OpenAI = require('openai');
 
-// ★★★ 修正点：クライアント初期化時にタイムアウトを設定 ★★★
+// クライアント初期化時にタイムアウトを設定
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, 
     timeout: 120 * 1000, // タイムアウトを120秒（2分）に設定
 });
 
-// Prompt tailored to CD requirements with stronger English translation enforcement
+// ★★★ 修正点：プロンプトを新しい軽量フォーマットに変更 ★★★
 const PROMPT_TEXT = `
 You are a professional CD appraiser.
-From the provided images of the CD jacket, obi, and disc, please identify only one specific CD by referencing the Discogs database.
-Then, output all items in English according to the following JSON format. If the original data is in another language, you MUST translate it to English.
+From the provided images, identify the CD and output its details in a single line of pipe-separated (|) text.
+Do not use JSON. Translate all information into English.
 
-- Title: The official title of the album or single. This MUST be translated into English.
-- Artist: The artist's name in Roman characters.
-- Type: Automatically determine if this CD is an "Album" or a "Single".
-- Genre: The music genre.
-- Style: A more detailed music style.
-- RecordLabel: The name of the record label.
-- CatalogNumber: The catalog number.
-- Format: Detailed format like "CD, Album, Reissue".
-- Country: The country where it was released.
-- Released: The release year (in A.D.).
-- Tracklist: List all tracks in the format "1. Track Name 1, 2. Track Name 2, 3. Track Name 3...". All track names MUST be translated into English.
-- isFirstEdition: Automatically determine if it is a first press limited edition with true/false.
-- hasBonus: Automatically determine if it comes with bonuses (bonus tracks, stickers, etc.) with true/false.
-- editionNotes: Supplementary information about the first edition or bonuses (e.g., "First Press Limited Edition with bonus sticker.").
-- DiscogsUrl: The exact Discogs URL referenced during identification.
-- MPN: Output the same value as CatalogNumber.
+The order MUST be exactly as follows:
+Title|Artist|Type|Genre|Style|RecordLabel|CatalogNumber|Format|Country|Released|Tracklist|isFirstEdition|hasBonus|editionNotes|DiscogsUrl|MPN
 
-Please be sure to respond in the specified JSON format. Do not include any other text.
+- Tracklist: All tracks in a single comma-separated string (e.g., "1. Track A, 2. Track B, 3. Track C").
+- isFirstEdition, hasBonus: Output as true/false.
+- Do not include headers or any other text. Only the single pipe-separated line.
 `;
 
 async function analyzeCd(imageBuffers) {
@@ -37,7 +25,6 @@ async function analyzeCd(imageBuffers) {
         throw new Error('No image data provided.');
     }
 
-    // Convert image data to Base64 format
     const imageMessages = imageBuffers.map(buffer => {
         return {
             type: 'image_url',
@@ -45,8 +32,6 @@ async function analyzeCd(imageBuffers) {
         };
     });
     
-    let content; // content変数をtryブロックの外で宣言
-
     try {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -59,30 +44,22 @@ async function analyzeCd(imageBuffers) {
                     ],
                 },
             ],
-            response_format: { type: "json_object" },
-            // ★★★ ここにあったtimeoutの行は削除しました ★★★
+            // ★★★ 修正点：JSONモードをオフにする ★★★
+            // response_format: { type: "json_object" }, 
         });
 
-        content = response.choices[0].message.content;
-
-        // JSON解析をtry...catchで囲み、エラー時に原因を特定しやすくします
-        try {
-            return JSON.parse(content);
-        } catch (parseError) {
-            console.error("=========================================");
-            console.error("JSON Parse Error. Raw content from OpenAI was:");
-            console.error(content);
-            console.error("=========================================");
-            throw new Error('Failed to parse JSON response from OpenAI.');
+        const content = response.choices[0].message.content;
+        
+        // ★★★ 修正点：JSON.parseをせず、生のテキストをそのまま返す ★★★
+        if (!content) {
+            throw new Error('OpenAI returned empty content.');
         }
+        return content;
 
     } catch (error) {
-        // API自体のエラー
         console.error('OpenAI API Call Error:', error.message);
         throw new Error('Failed to analyze with OpenAI API.');
     }
 }
 
-// Export for use in other files
 module.exports = { analyzeCd };
-
