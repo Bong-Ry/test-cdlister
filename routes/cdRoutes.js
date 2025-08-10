@@ -2,8 +2,8 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
+const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
 
-// ★★★ 追加：AIからのパイプ区切りテキストを解析するヘルパー関数 ★★★
 function parseAiResponse(responseText) {
     const fields = [
         "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
@@ -13,20 +13,16 @@ function parseAiResponse(responseText) {
     const values = responseText.split('|').map(v => v.trim());
     const aiData = {};
     fields.forEach((field, index) => {
-        aiData[field] = values[index] || ''; // 見つからない場合は空文字をセット
+        aiData[field] = values[index] || '';
     });
-
-    // 文字列の 'true'/'false' をブール値に変換
     aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
     aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
-
     return aiData;
 }
 
-
 const descriptionTemplate = ({ aiData, userInput }) => {
-    const tracklistHtml = aiData.Tracklist 
-        ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
+    const tracklistHtml = aiData.Tracklist
+        ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('')
         : '<li>N/A</li>';
 
     const html = `
@@ -96,19 +92,10 @@ const generateCsv = (records) => {
     const headerRow = headers.join(',');
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
-        const { aiData, userInput, allImageUrls, customLabel } = r;
+        const { aiData, userInput, ebayImageUrls, customLabel } = r;
+        const picURLs = ebayImageUrls.join('|');
 
-        const shippingProfileName = userInput.shipping;
-        const conditionId = userInput.conditionId;
-        const picURLs = allImageUrls.map(url => {
-            const fileId = url.split('/d/')[1].split('/')[0];
-            return `https://drive.google.com/uc?export=view&id=${fileId}`;
-        }).join('|');
-        
-        const titleParts = [
-            aiData.Title,
-            aiData.Artist
-        ];
+        const titleParts = [ aiData.Title, aiData.Artist ];
         if (userInput.conditionObi !== 'なし') {
             titleParts.push('w/obi');
         }
@@ -118,7 +105,7 @@ const generateCsv = (records) => {
             "Action(CC=Cp1252)": "Add",
             "CustomLabel": customLabel,
             "StartPrice": userInput.price,
-            "ConditionID": conditionId,
+            "ConditionID": userInput.conditionId,
             "Title": newTitle,
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
@@ -129,7 +116,7 @@ const generateCsv = (records) => {
             "PayPalEmailAddress": "payAddress",
             "PaymentProfileName": "buy it now",
             "ReturnProfileName": "Seller 60days",
-            "ShippingProfileName": shippingProfileName,
+            "ShippingProfileName": userInput.shipping,
             "Country": "JP",
             "Location": "417-0816, Fuji Shizuoka",
             "Apply Profile Domestic": "0.0",
@@ -233,35 +220,41 @@ module.exports = (sessions) => {
                 for (const record of session.records) {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
-                        const imageBuffers = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-                        
-                        // ★★★ 修正点：AIからの応答を新しい関数でパースする ★★★
-                        const aiResponseText = await aiService.analyzeCd(imageBuffers);
+                        const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
+                        const aiResponseText = await aiService.analyzeCd(imageBuffersForAi);
                         const aiData = parseAiResponse(aiResponseText);
-                        
-                        const allFiles = await driveService.getAllImageFiles(record.folderId);
-                        const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-                        const m = allFiles.filter(f => f.name.startsWith('M')).sort((a,b) => collator.compare(a.name, b.name));
-                        const j = allFiles.filter(f => f.name.startsWith('J')).sort((a,b) => collator.compare(a.name, b.name));
-                        const d = allFiles.filter(f => f.name.startsWith('D')).sort((a,b) => collator.compare(a.name, b.name));
-                        
-                        const allImageUrls = [...m, ...j, ...d].map(f => `https://drive.google.com/file/d/${f.id}/view`);
 
-                        const j1File = j.find(f => f.name.startsWith('J1_'));
+                        console.log(`Starting image upload for: ${record.folderName}`);
+                        const allImageFiles = await driveService.getAllImageFiles(record.folderId);
+                        
+                        const ebayImageUrls = [];
+                        for (const file of allImageFiles) {
+                            console.log(`  Downloading ${file.name} from Drive...`);
+                            const buffer = await driveService.downloadFile(file.id);
+                            console.log(`  Uploading ${file.name} to eBay...`);
+                            const ebayUrl = await ebayService.uploadPicture(buffer);
+                            ebayImageUrls.push(ebayUrl);
+                            console.log(`  Success: ${ebayUrl}`);
+                        }
+                        console.log(`Finished image upload for: ${record.folderName}`);
+                        
+                        const j1File = allImageFiles.find(f => f.name.startsWith('J1_'));
                         if (j1File) {
                             aiData.J1_FileId = j1File.id;
-                        } else if (j.length > 0) {
-                            aiData.J1_FileId = j[0].id;
+                        } else if (allImageFiles.length > 0) {
+                            aiData.J1_FileId = allImageFiles[0].id;
                         }
 
-                        Object.assign(record, { status: 'success', aiData, allImageUrls });
+                        Object.assign(record, { status: 'success', aiData, ebayImageUrls });
 
                     } catch (err) {
+                        console.error(`Error processing record ${record.folderName}:`, err);
                         Object.assign(record, { status: 'error', error: err.message });
                     }
                 }
                 session.status = 'completed';
             } catch (err) {
+                console.error(`Fatal error in processing session:`, err);
                 session.status = 'error';
                 session.error = err.message;
             }
