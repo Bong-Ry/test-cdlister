@@ -2,10 +2,29 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
+const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
 
+// AIからのパイプ区切りテキストを解析するヘルパー関数
+function parseAiResponse(responseText) {
+    const fields = [
+        "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
+        "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
+        "editionNotes", "DiscogsUrl", "MPN"
+    ];
+    const values = responseText.split('|').map(v => v.trim());
+    const aiData = {};
+    fields.forEach((field, index) => {
+        aiData[field] = values[index] || '';
+    });
+    aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
+    aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
+    return aiData;
+}
+
+// 商品説明のHTMLを生成する関数
 const descriptionTemplate = ({ aiData, userInput }) => {
-    const tracklistHtml = aiData.Tracklist 
-        ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('') 
+    const tracklistHtml = aiData.Tracklist
+        ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('')
         : '<li>N/A</li>';
 
     const html = `
@@ -60,6 +79,7 @@ const descriptionTemplate = ({ aiData, userInput }) => {
     return html.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
 };
 
+// CSVデータを生成する関数
 const generateCsv = (records) => {
     const headers = [
         "Action(CC=Cp1252)", "CustomLabel", "StartPrice", "ConditionID", "Title", "Description", "C:Brand", "PicURL",
@@ -75,80 +95,39 @@ const generateCsv = (records) => {
     const headerRow = headers.join(',');
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
-        const { aiData, userInput, allImageUrls, customLabel } = r;
+        const { aiData, userInput, ebayImageUrls, customLabel } = r;
+        const picURLs = ebayImageUrls.join('|');
 
-        // ★★★ 送料の値を直接使用するように変更 ★★★
-        const shippingProfileName = userInput.shipping;
-        
-        const conditionId = userInput.conditionId;
-
-        const picURLs = allImageUrls.map(url => {
-            const fileId = url.split('/d/')[1].split('/')[0];
-            return `https://drive.google.com/uc?export=view&id=${fileId}`;
-        }).join('|');
-        
-        const titleParts = [
-            aiData.Title,
-            aiData.Artist
-        ];
+        const titleParts = [ aiData.Title, aiData.Artist ];
         if (userInput.conditionObi !== 'なし') {
             titleParts.push('w/obi');
         }
         const newTitle = titleParts.join(' ');
 
-
         const data = {
             "Action(CC=Cp1252)": "Add",
             "CustomLabel": customLabel,
             "StartPrice": userInput.price,
-            "ConditionID": conditionId,
+            "ConditionID": userInput.conditionId,
             "Title": newTitle,
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
             "PicURL": picURLs,
-            "UPC": "NA",
-            "Category": "176984",
-            "PayPalAccepted": "1",
-            "PayPalEmailAddress": "payAddress",
-            "PaymentProfileName": "buy it now",
-            "ReturnProfileName": "Seller 60days",
-            "ShippingProfileName": shippingProfileName, // ★★★ 修正後の送料 ★★★
-            "Country": "JP",
-            "Location": "417-0816, Fuji Shizuoka",
-            "Apply Profile Domestic": "0.0",
-            "Apply Profile International": "0.0",
-            "BuyerRequirements:LinkedPayPalAccount": "0.0",
-            "Duration": "GTC",
-            "Format": "FixedPriceItem",
-            "Quantity": "1",
-            "Currency": "USD",
-            "SiteID": "US",
-            "C:Country": "Japan",
-            "BestOfferEnabled": "0",
-            "C:Artist": aiData.Artist,
-            "C:Release Title": aiData.Title,
-            "C:Format": aiData.Format,
-            "C:Genre": aiData.Genre,
-            "C:Record Label": aiData.RecordLabel,
-            "C:Edition": aiData.isFirstEdition ? 'Limited Edition' : '',
-            "C:Style": aiData.Style,
-            "C:Type": aiData.Type,
-            "C:Color": "NA",
-            "C:Release Year": aiData.Released,
-            "C:CD Grading": userInput.conditionCd,
-            "C:Case Type": "Jewel Case: Standard",
-            "C:Case Condition": userInput.conditionCase,
-            "C:Inlay Condition": userInput.conditionObi,
-            "C:Country/Region of Manufacture": aiData.Country,
-            "C:Features": userInput.conditionObi !== 'なし' ? 'OBI' : '',
+            "UPC": "NA", "Category": "176984", "PayPalAccepted": "1", "PayPalEmailAddress": "payAddress",
+            "PaymentProfileName": "buy it now", "ReturnProfileName": "Seller 60days", "ShippingProfileName": userInput.shipping,
+            "Country": "JP", "Location": "417-0816, Fuji Shizuoka", "Apply Profile Domestic": "0.0", "Apply Profile International": "0.0",
+            "BuyerRequirements:LinkedPayPalAccount": "0.0", "Duration": "GTC", "Format": "FixedPriceItem", "Quantity": "1",
+            "Currency": "USD", "SiteID": "US", "C:Country": "Japan", "BestOfferEnabled": "0", "C:Artist": aiData.Artist,
+            "C:Release Title": aiData.Title, "C:Format": aiData.Format, "C:Genre": aiData.Genre,
+            "C:Record Label": aiData.RecordLabel, "C:Edition": aiData.isFirstEdition ? 'Limited Edition' : '',
+            "C:Style": aiData.Style, "C:Type": aiData.Type, "C:Color": "NA", "C:Release Year": aiData.Released,
+            "C:CD Grading": userInput.conditionCd, "C:Case Type": "Jewel Case: Standard",
+            "C:Case Condition": userInput.conditionCase, "C:Inlay Condition": userInput.conditionObi,
+            "C:Country/Region of Manufacture": aiData.Country, "C:Features": userInput.conditionObi !== 'なし' ? 'OBI' : '',
             "C:Producer": "NA", "C:Language": "NA", "C:Instrument": "NA", "C:Occasion": "NA", "C:Era": "NA",
             "C:Composer": "NA", "C:Conductor": "NA", "C:Performer Orchestra": "NA", "C:Run Time": "NA",
-            "C:MPN": aiData.MPN,
-            "C:California Prop 65 Warning": "NA",
-            "C:Catalog Number": aiData.CatalogNumber,
-            "C:Unit Quantity": "", "C:Unit Type": "",
-            "StoreCategory": userInput.storeCategory,
-            "__keyValuePairs": "[object Object]"
+            "C:MPN": aiData.MPN, "C:California Prop 65 Warning": "NA", "C:Catalog Number": aiData.CatalogNumber,
+            "C:Unit Quantity": "", "C:Unit Type": "", "StoreCategory": userInput.storeCategory, "__keyValuePairs": "[object Object]"
         };
         return headers.map(h => `"${(data[h] || '').toString().replace(/"/g, '""')}"`).join(',');
     });
@@ -216,33 +195,41 @@ module.exports = (sessions) => {
                 for (const record of session.records) {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
-                        const imageBuffers = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-                        
-                        const aiData = await aiService.analyzeCd(imageBuffers);
-                        
-                        const allFiles = await driveService.getAllImageFiles(record.folderId);
-                        const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-                        const m = allFiles.filter(f => f.name.startsWith('M')).sort((a,b) => collator.compare(a.name, b.name));
-                        const j = allFiles.filter(f => f.name.startsWith('J')).sort((a,b) => collator.compare(a.name, b.name));
-                        const d = allFiles.filter(f => f.name.startsWith('D')).sort((a,b) => collator.compare(a.name, b.name));
-                        
-                        const allImageUrls = [...m, ...j, ...d].map(f => `https://drive.google.com/file/d/${f.id}/view`);
+                        const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
+                        const aiResponseText = await aiService.analyzeCd(imageBuffersForAi);
+                        const aiData = parseAiResponse(aiResponseText);
 
-                        const j1File = j.find(f => f.name.startsWith('J1_'));
+                        console.log(`Starting image upload for: ${record.folderName}`);
+                        const allImageFiles = await driveService.getAllImageFiles(record.folderId);
+                        
+                        const ebayImageUrls = [];
+                        for (const file of allImageFiles) {
+                            console.log(`  Downloading ${file.name} from Drive...`);
+                            const buffer = await driveService.downloadFile(file.id);
+                            console.log(`  Uploading ${file.name} to eBay...`);
+                            const ebayUrl = await ebayService.uploadPicture(buffer);
+                            ebayImageUrls.push(ebayUrl);
+                            console.log(`  Success: ${ebayUrl}`);
+                        }
+                        console.log(`Finished image upload for: ${record.folderName}`);
+                        
+                        const j1File = allImageFiles.find(f => f.name.startsWith('J1_'));
                         if (j1File) {
                             aiData.J1_FileId = j1File.id;
-                        } else if (j.length > 0) {
-                            aiData.J1_FileId = j[0].id;
+                        } else if (allImageFiles.length > 0) {
+                            aiData.J1_FileId = allImageFiles[0].id;
                         }
 
-                        Object.assign(record, { status: 'success', aiData, allImageUrls });
+                        Object.assign(record, { status: 'success', aiData, ebayImageUrls });
 
                     } catch (err) {
+                        console.error(`Error processing record ${record.folderName}:`, err);
                         Object.assign(record, { status: 'error', error: err.message });
                     }
                 }
                 session.status = 'completed';
             } catch (err) {
+                console.error(`Fatal error in processing session:`, err);
                 session.status = 'error';
                 session.error = err.message;
             }
