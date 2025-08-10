@@ -4,6 +4,7 @@ const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
 
+// AIからのパイプ区切りテキストを解析するヘルパー関数
 function parseAiResponse(responseText) {
     const fields = [
         "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
@@ -15,11 +16,15 @@ function parseAiResponse(responseText) {
     fields.forEach((field, index) => {
         aiData[field] = values[index] || '';
     });
+
+    // 文字列の 'true'/'false' をブール値に変換
     aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
     aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
+
     return aiData;
 }
 
+// 商品説明のHTMLを生成する関数
 const descriptionTemplate = ({ aiData, userInput }) => {
     const tracklistHtml = aiData.Tracklist
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('')
@@ -77,6 +82,7 @@ const descriptionTemplate = ({ aiData, userInput }) => {
     return html.replace(/\s{2,}/g, ' ').replace(/\n/g, '');
 };
 
+// CSVデータを生成する関数
 const generateCsv = (records) => {
     const headers = [
         "Action(CC=Cp1252)", "CustomLabel", "StartPrice", "ConditionID", "Title", "Description", "C:Brand", "PicURL",
@@ -92,6 +98,7 @@ const generateCsv = (records) => {
     const headerRow = headers.join(',');
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
+        // ★★★ 修正点：allImageUrlsではなく、ebayImageUrlsを使うように修正 ★★★
         const { aiData, userInput, ebayImageUrls, customLabel } = r;
         const picURLs = ebayImageUrls.join('|');
 
@@ -109,7 +116,7 @@ const generateCsv = (records) => {
             "Title": newTitle,
             "Description": descriptionTemplate({ aiData, userInput }),
             "C:Brand": aiData.RecordLabel || "No Brand",
-            "PicURL": picURLs,
+            "PicURL": picURLs, // ★★★ ここに正しいeBayのURLが入ります ★★★
             "UPC": "NA",
             "Category": "176984",
             "PayPalAccepted": "1",
@@ -163,8 +170,10 @@ const generateCsv = (records) => {
 module.exports = (sessions) => {
     const router = express.Router();
 
+    // トップページの表示
     router.get('/', (req, res) => res.render('index'));
 
+    // カテゴリ情報を取得するAPI
     router.get('/categories', async (req, res) => {
         try {
             const categories = await driveService.getStoreCategories();
@@ -175,6 +184,7 @@ module.exports = (sessions) => {
         }
     });
 
+    // 送料情報を取得するAPI
     router.get('/shipping-costs', async (req, res) => {
         try {
             const shippingCosts = await driveService.getShippingCosts();
@@ -185,6 +195,7 @@ module.exports = (sessions) => {
         }
     });
 
+    // メインの処理を開始するルート
     router.post('/process', async (req, res) => {
         const parentFolderUrl = req.body.parentFolderUrl;
         if (!parentFolderUrl) return res.redirect('/');
@@ -193,6 +204,7 @@ module.exports = (sessions) => {
         sessions.set(sessionId, { status: 'processing', records: [] });
         res.render('results', { sessionId });
 
+        // レスポンスを返した後に、裏側で重い処理を続ける
         (async () => {
             const session = sessions.get(sessionId);
             try {
@@ -245,6 +257,7 @@ module.exports = (sessions) => {
                             aiData.J1_FileId = allImageFiles[0].id;
                         }
 
+                        // ★★★ 修正点：ebayImageUrlsのみを保存 ★★★
                         Object.assign(record, { status: 'success', aiData, ebayImageUrls });
 
                     } catch (err) {
@@ -261,10 +274,12 @@ module.exports = (sessions) => {
         })();
     });
 
+    // 処理状況をポーリングするためのAPI
     router.get('/status/:sessionId', (req, res) => {
         res.json(sessions.get(req.params.sessionId) || { status: 'error', error: 'Session not found' });
     });
 
+    // ユーザーが入力した情報を保存するAPI
     router.post('/save/:sessionId/:recordId', async (req, res) => {
         const { sessionId, recordId } = req.params;
         const session = sessions.get(sessionId);
@@ -278,6 +293,7 @@ module.exports = (sessions) => {
         res.json({ status: 'ok' });
     });
 
+    // CSVをダウンロードするルート
     router.get('/csv/:sessionId', (req, res) => {
         const session = sessions.get(req.params.sessionId);
         if (!session) return res.status(404).send('Session not found');
@@ -294,6 +310,7 @@ module.exports = (sessions) => {
         res.send('\uFEFF' + generateCsv(session.records));
     });
 
+    // 画像を表示するためのルート
     router.get('/image/:fileId', async (req, res) => {
         try {
             const imageStream = await driveService.getImageStream(req.params.fileId);
@@ -306,3 +323,4 @@ module.exports = (sessions) => {
 
     return router;
 };
+
