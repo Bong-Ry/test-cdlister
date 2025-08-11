@@ -2,3 +2,4 @@ node_modules
 .DS_Store
 service-account-key.json
 config.js
+.env
