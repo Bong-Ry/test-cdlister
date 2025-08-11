@@ -2,7 +2,6 @@
 const EbayApi = require('ebay-api');
 
 const siteKey = process.env.EBAY_SITE || 'EBAY_US';
-
 const ebay = new EbayApi({
   appId:  process.env.EBAY_APP_ID,
   certId: process.env.EBAY_CERT_ID,
@@ -12,7 +11,6 @@ const ebay = new EbayApi({
   authToken: process.env.EBAY_AUTH_TOKEN ?? process.env.EBAY_USER_TOKEN
 });
 
-/** 公開httpsの画像URLをEPSに取り込み、FullURLを返す */
 async function uploadPictureFromExternalUrl(imageUrl, name = 'CD_Image_From_App') {
   if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
     throw new Error(`Invalid image URL: ${imageUrl}`);
@@ -21,9 +19,30 @@ async function uploadPictureFromExternalUrl(imageUrl, name = 'CD_Image_From_App'
     ExternalPictureURL: imageUrl,
     PictureName: name
   });
-  const url = res?.SiteHostedPictureDetails?.FullURL;
-  if (!url) throw new Error('eBay did not return FullURL');
-  return url;
+  return res.SiteHostedPictureDetails.FullURL;
 }
 
-module.exports = { ebay, uploadPictureFromExternalUrl };
+async function uploadPictureFromBuffer(imageBuffer, name = 'CD_Image_From_App') {
+  if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+    throw new Error('imageBuffer must be a non-empty Buffer');
+  }
+  const res = await ebay.trading.UploadSiteHostedPictures({
+    PictureName: name,
+    PictureData: imageBuffer.toString('base64') // SDK側でMIME組み立て
+  });
+  return res.SiteHostedPictureDetails.FullURL;
+}
+
+/** 後方互換用：呼び出し側が uploadPicture(...) のままでも動く */
+async function uploadPicture(src, name) {
+  if (Buffer.isBuffer(src)) return uploadPictureFromBuffer(src, name);
+  if (typeof src === 'string') return uploadPictureFromExternalUrl(src, name);
+  throw new Error('uploadPicture: expected a Buffer or an https URL string');
+}
+
+module.exports = {
+  ebay,
+  uploadPicture,                    // ← 既存呼び出し用
+  uploadPictureFromExternalUrl,
+  uploadPictureFromBuffer
+};
