@@ -4,21 +4,38 @@ const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
 
-// AIからのパイプ区切りテキストを解析するヘルパー関数
-function parseAiResponse(responseText) {
-    const fields = [
-        "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
-        "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
-        "editionNotes", "DiscogsUrl", "MPN"
-    ];
-    const values = responseText.split('|').map(v => v.trim());
-    const aiData = {};
-    fields.forEach((field, index) => {
-        aiData[field] = values[index] || '';
-    });
-    aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
-    aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
-    return aiData;
+// AIからのJSONレスポンスを処理するヘルパー関数
+function parseAiResponse(responseData) {
+    // responseDataが既にオブジェクトの場合はそのまま返す
+    if (typeof responseData === 'object' && responseData !== null) {
+        return responseData;
+    }
+    
+    // 文字列の場合はJSONとしてパースを試行
+    if (typeof responseData === 'string') {
+        try {
+            return JSON.parse(responseData);
+        } catch (error) {
+            console.error('Failed to parse AI response as JSON:', error);
+            // JSONパースに失敗した場合は、パイプ区切りとして処理
+            const fields = [
+                "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
+                "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
+                "editionNotes", "DiscogsUrl", "MPN"
+            ];
+            const values = responseData.split('|').map(v => v.trim());
+            const aiData = {};
+            fields.forEach((field, index) => {
+                aiData[field] = values[index] || '';
+            });
+            aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
+            aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
+            return aiData;
+        }
+    }
+    
+    // その他の場合はエラーを投げる
+    throw new Error('Invalid AI response format');
 }
 
 // 商品説明のHTMLを生成する関数
@@ -196,8 +213,8 @@ module.exports = (sessions) => {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
                         const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-                        const aiResponseText = await aiService.analyzeCd(imageBuffersForAi);
-                        const aiData = parseAiResponse(aiResponseText);
+                        const aiResponse = await aiService.analyzeCd(imageBuffersForAi);
+                        const aiData = parseAiResponse(aiResponse);
 
                         console.log(`Starting image upload for: ${record.folderName}`);
                         const allImageFiles = await driveService.getAllImageFiles(record.folderId);
