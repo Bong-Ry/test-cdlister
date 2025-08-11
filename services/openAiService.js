@@ -9,7 +9,9 @@ const openai = new OpenAI({
 const PROMPT_TEXT = `
 You are a professional CD appraiser.
 From the provided images of the CD jacket, obi, and disc, please identify only one specific CD by referencing the Discogs database.
-Then, output all items in English according to the following JSON format. If the original data is in another language, you MUST translate it to English.
+Then, output all items in English according to the following format, separated by '|'. If the original data is in another language, you MUST translate it to English.
+The order of the items MUST be:
+Title|Artist|Type|Genre|Style|RecordLabel|CatalogNumber|Format|Country|Released|Tracklist|isFirstEdition|hasBonus|editionNotes|DiscogsUrl|MPN
 
 - Title: The official title of the album or single. This MUST be translated into English.
 - Artist: The artist's name in Roman characters.
@@ -28,7 +30,7 @@ Then, output all items in English according to the following JSON format. If the
 - DiscogsUrl: The exact Discogs URL referenced during identification.
 - MPN: Output the same value as CatalogNumber.
 
-Please be sure to respond in the specified JSON format. Do not include any other text.
+Please be sure to respond in the specified pipe-separated format. Do not include any other text.
 `;
 
 async function analyzeCd(imageBuffers) {
@@ -56,11 +58,11 @@ async function analyzeCd(imageBuffers) {
                     ],
                 },
             ],
-            response_format: { type: "json_object" },
+            // response_format: { type: "json_object" }, // JSON形式の指定を削除
         });
 
         const content = response.choices[0].message.content;
-        return JSON.parse(content);
+        return content; // AIからのレスポンスを文字列としてそのまま返す
 
     } catch (error) {
         console.error('OpenAI API Error:', error.response ? error.response.data : error.message);

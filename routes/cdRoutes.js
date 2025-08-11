@@ -4,22 +4,48 @@ const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
 
-// AIからのパイプ区切りテキストを解析するヘルパー関数
+// AIからのレスポンスを処理するヘルパー関数
 function parseAiResponse(responseText) {
-    const fields = [
-        "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
-        "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
-        "editionNotes", "DiscogsUrl", "MPN"
-    ];
-    const values = responseText.split('|').map(v => v.trim());
-    const aiData = {};
-    fields.forEach((field, index) => {
-        aiData[field] = values[index] || '';
-    });
-    aiData.isFirstEdition = aiData.isFirstEdition.toLowerCase() === 'true';
-    aiData.hasBonus = aiData.hasBonus.toLowerCase() === 'true';
-    return aiData;
+    // responseTextがnullまたはundefinedの場合は空のオブジェクトを返す
+    if (!responseText) {
+        return {};
+    }
+    // responseTextが既にオブジェクトの場合はそのまま返す
+    if (typeof responseText === 'object' && responseText !== null) {
+        return responseText;
+    }
+    
+    // 文字列の場合は、まずJSONとしてのパースを試みる
+    if (typeof responseText === 'string') {
+        try {
+            // 不適切なクリーンアップを試みるのではなく、直接パースする
+            return JSON.parse(responseText);
+        } catch (jsonError) {
+            // JSONパースに失敗した場合、パイプ区切りとして処理
+            const fields = [
+                "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
+                "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
+                "editionNotes", "DiscogsUrl", "MPN"
+            ];
+            const values = responseText.split('|').map(v => v.trim());
+            const aiData = {};
+            fields.forEach((field, index) => {
+                let value = values[index] || '';
+                if (field === 'isFirstEdition' || field === 'hasBonus') {
+                    aiData[field] = value.toLowerCase() === 'true';
+                } else {
+                    aiData[field] = value;
+                }
+            });
+            return aiData;
+        }
+    }
+    
+    // その他の予期しない形式の場合はエラーを投げる
+    console.error('Invalid AI response format received:', responseText);
+    throw new Error('Invalid AI response format');
 }
+
 
 // 商品説明のHTMLを生成する関数
 const descriptionTemplate = ({ aiData, userInput }) => {
@@ -96,9 +122,10 @@ const generateCsv = (records) => {
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, ebayImageUrls, customLabel } = r;
-        const picURLs = ebayImageUrls.join('|');
+        // ebayImageUrlsが配列であることを確認し、|で結合
+        const picURLs = Array.isArray(ebayImageUrls) ? ebayImageUrls.join('|') : '';
 
-        const titleParts = [ aiData.Title, aiData.Artist ];
+        const titleParts = [ aiData.Artist, aiData.Title ]; // アーティストを先頭に変更
         if (userInput.conditionObi !== 'なし') {
             titleParts.push('w/obi');
         }
@@ -127,7 +154,7 @@ const generateCsv = (records) => {
             "C:Producer": "NA", "C:Language": "NA", "C:Instrument": "NA", "C:Occasion": "NA", "C:Era": "NA",
             "C:Composer": "NA", "C:Conductor": "NA", "C:Performer Orchestra": "NA", "C:Run Time": "NA",
             "C:MPN": aiData.MPN, "C:California Prop 65 Warning": "NA", "C:Catalog Number": aiData.CatalogNumber,
-            "C:Unit Quantity": "", "C:Unit Type": "", "StoreCategory": userInput.storeCategory, "__keyValuePairs": "[object Object]"
+            "C:Unit Quantity": "", "C:Unit Type": "", "StoreCategory": userInput.storeCategory, "__keyValuePairs": ""
         };
         return headers.map(h => `"${(data[h] || '').toString().replace(/"/g, '""')}"`).join(',');
     });
@@ -196,20 +223,26 @@ module.exports = (sessions) => {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
                         const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-                        const aiResponseText = await aiService.analyzeCd(imageBuffersForAi);
-                        const aiData = parseAiResponse(aiResponseText);
+                        const aiResponse = await aiService.analyzeCd(imageBuffersForAi);
+                        const aiData = parseAiResponse(aiResponse);
 
+                        // ★★★ eBayへの画像アップロード処理を追加 ★★★
                         console.log(`Starting image upload for: ${record.folderName}`);
                         const allImageFiles = await driveService.getAllImageFiles(record.folderId);
                         
                         const ebayImageUrls = [];
                         for (const file of allImageFiles) {
-                            console.log(`  Downloading ${file.name} from Drive...`);
-                            const buffer = await driveService.downloadFile(file.id);
-                            console.log(`  Uploading ${file.name} to eBay...`);
-                            const ebayUrl = await ebayService.uploadPicture(buffer);
-                            ebayImageUrls.push(ebayUrl);
-                            console.log(`  Success: ${ebayUrl}`);
+                            try {
+                                console.log(`  Downloading ${file.name} from Drive...`);
+                                const buffer = await driveService.downloadFile(file.id);
+                                console.log(`  Uploading ${file.name} to eBay...`);
+                                const ebayUrl = await ebayService.uploadPicture(buffer);
+                                ebayImageUrls.push(ebayUrl);
+                                console.log(`  Success: ${ebayUrl}`);
+                            } catch (uploadError) {
+                                console.error(`  Failed to upload ${file.name} to eBay:`, uploadError.message);
+                                // 1枚のアップロードが失敗しても処理を続行するが、URLは追加しない
+                            }
                         }
                         console.log(`Finished image upload for: ${record.folderName}`);
                         
@@ -281,3 +314,4 @@ module.exports = (sessions) => {
 
     return router;
 };
+
