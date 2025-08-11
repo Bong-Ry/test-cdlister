@@ -1,50 +1,57 @@
-const eBay = require('ebay-api');
+const axios = require('axios');
 
-// Renderの環境変数からAPIキーを読み込む設定
-const ebay = new eBay({
-    clientID: process.env.EBAY_APP_ID,
-    clientSecret: process.env.EBAY_CERT_ID,
-    devid: process.env.EBAY_DEV_ID,
-    body: {
-        // ebay-apiライブラリの仕様に合わせて、トークンは直接リクエストに含めます
-    }
-});
+// eBay Trading APIのエンドポイント
+const EBAY_API_URL = 'https://api.ebay.com/ws/api.dll';
 
 /**
- * 画像データをeBayのサーバーにアップロードする関数
+ * 画像データをeBayのサーバーにアップロードする関数 (axios版)
  * @param {Buffer} imageBuffer - 画像のバッファデータ
  * @returns {Promise<string>} - eBayから返された画像URL
  */
 async function uploadPicture(imageBuffer) {
+    // Trading API (UploadSiteHostedPictures) が要求するXML形式のリクエストボディを作成
+    const xmlRequest = `<?xml version="1.0" encoding="utf-8"?>
+<UploadSiteHostedPicturesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${process.env.EBAY_USER_TOKEN}</eBayAuthToken>
+  </RequesterCredentials>
+  <PictureName>CD_Image_From_App</PictureName>
+  <PictureData>${imageBuffer.toString('base64')}</PictureData>
+</UploadSiteHostedPicturesRequest>`;
+
     try {
-        // Trading APIのUploadSiteHostedPicturesを呼び出す
-        const response = await ebay.trading.UploadSiteHostedPictures({
-            // リクエストごとにAuthTokenを渡す
-            RequesterCredentials: {
-                eBayAuthToken: process.env.EBAY_USER_TOKEN
+        const response = await axios.post(EBAY_API_URL, xmlRequest, {
+            headers: {
+                'Content-Type': 'text/xml',
+                'X-EBAY-API-COMPATIBILITY-LEVEL': '967', // APIのバージョン
+                'X-EBAY-API-CALL-NAME': 'UploadSiteHostedPictures', // 呼び出すAPI機能名
+                'X-EBAY-API-SITEID': '0', // サイトID (0はUS)
             },
-            PictureName: 'CD_Image_From_App',
-            PictureData: imageBuffer.toString('base64'), // 画像データをBase64形式に変換
         });
 
-        // 成功した場合、eBayの画像URLを返す
-        if (response.Ack === 'Success' && response.SiteHostedPictureDetails && response.SiteHostedPictureDetails.FullURL) {
-            return response.SiteHostedPictureDetails.FullURL;
-        } else {
-            // APIから成功以外のレスポンスが返ってきた場合
-            const errorMessage = response.Errors ? response.Errors.map(e => e.LongMessage).join(', ') : 'Unknown eBay API error';
-            throw new Error(errorMessage);
+        // eBayからのXML応答をパースしてURLを取得
+        const responseXml = response.data;
+        if (responseXml.includes('<Ack>Success</Ack>')) {
+            const match = responseXml.match(/<FullURL>(.*?)<\/FullURL>/);
+            if (match && match[1]) {
+                return match[1]; // 画像URLを返す
+            }
         }
 
+        // エラーがあった場合、その内容をログに出力
+        const errorMatch = responseXml.match(/<LongMessage>(.*?)<\/LongMessage>/);
+        const errorMessage = errorMatch ? errorMatch[1] : 'Unknown eBay API error after upload.';
+        console.error('eBay API returned non-success Ack:', errorMessage);
+        throw new Error(errorMessage);
+
     } catch (error) {
-        console.error('eBay Picture Upload Error:', error);
-        // エラーオブジェクトに詳細情報が含まれている場合、それを表示
-        if (error.meta && error.meta.res && error.meta.res.Errors) {
-            console.error('Detailed eBay Error:', JSON.stringify(error.meta.res.Errors, null, 2));
+        console.error('eBay Picture Upload Request Error:', error.message);
+        // axiosのエラーレスポンス詳細があれば表示
+        if (error.response) {
+            console.error('Detailed eBay Error Response:', error.response.data);
         }
         throw new Error('Failed to upload picture to eBay.');
     }
 }
 
 module.exports = { uploadPicture };
-
