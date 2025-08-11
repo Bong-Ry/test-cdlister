@@ -2,26 +2,20 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
-const ebayService = require('../services/ebayService'); // eBayサービスを読み込み
+// ebayServiceの読み込みを削除
 
 // AIからのレスポンスを処理するヘルパー関数
 function parseAiResponse(responseText) {
-    // responseTextがnullまたはundefinedの場合は空のオブジェクトを返す
     if (!responseText) {
         return {};
     }
-    // responseTextが既にオブジェクトの場合はそのまま返す
     if (typeof responseText === 'object' && responseText !== null) {
         return responseText;
     }
-    
-    // 文字列の場合は、まずJSONとしてのパースを試みる
     if (typeof responseText === 'string') {
         try {
-            // 不適切なクリーンアップを試みるのではなく、直接パースする
             return JSON.parse(responseText);
         } catch (jsonError) {
-            // JSONパースに失敗した場合、パイプ区切りとして処理
             const fields = [
                 "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
                 "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
@@ -40,14 +34,11 @@ function parseAiResponse(responseText) {
             return aiData;
         }
     }
-    
-    // その他の予期しない形式の場合はエラーを投げる
     console.error('Invalid AI response format received:', responseText);
     throw new Error('Invalid AI response format');
 }
 
-
-// 商品説明のHTMLを生成する関数
+// 商品説明のHTMLを生成する関数 (変更なし)
 const descriptionTemplate = ({ aiData, userInput }) => {
     const tracklistHtml = aiData.Tracklist
         ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('')
@@ -121,11 +112,14 @@ const generateCsv = (records) => {
     const headerRow = headers.join(',');
 
     const rows = records.filter(r => r.status === 'saved').map(r => {
-        const { aiData, userInput, ebayImageUrls, customLabel } = r;
-        // ebayImageUrlsが配列であることを確認し、|で結合
-        const picURLs = Array.isArray(ebayImageUrls) ? ebayImageUrls.join('|') : '';
+        const { aiData, userInput, allImageFiles, customLabel } = r;
+        
+        // Google Driveの画像IDから直接表示用のURLを生成
+        const picURLs = allImageFiles
+            .map(file => `https://drive.google.com/uc?export=view&id=${file.id}`)
+            .join('|');
 
-        const titleParts = [ aiData.Artist, aiData.Title ]; // アーティストを先頭に変更
+        const titleParts = [ aiData.Artist, aiData.Title ];
         if (userInput.conditionObi !== 'なし') {
             titleParts.push('w/obi');
         }
@@ -226,25 +220,8 @@ module.exports = (sessions) => {
                         const aiResponse = await aiService.analyzeCd(imageBuffersForAi);
                         const aiData = parseAiResponse(aiResponse);
 
-                        // ★★★ eBayへの画像アップロード処理を追加 ★★★
-                        console.log(`Starting image upload for: ${record.folderName}`);
+                        // eBayへのアップロード処理を削除し、代わりに全画像ファイル情報を取得
                         const allImageFiles = await driveService.getAllImageFiles(record.folderId);
-                        
-                        const ebayImageUrls = [];
-                        for (const file of allImageFiles) {
-                            try {
-                                console.log(`  Downloading ${file.name} from Drive...`);
-                                const buffer = await driveService.downloadFile(file.id);
-                                console.log(`  Uploading ${file.name} to eBay...`);
-                                const ebayUrl = await ebayService.uploadPicture(buffer);
-                                ebayImageUrls.push(ebayUrl);
-                                console.log(`  Success: ${ebayUrl}`);
-                            } catch (uploadError) {
-                                console.error(`  Failed to upload ${file.name} to eBay:`, uploadError.message);
-                                // 1枚のアップロードが失敗しても処理を続行するが、URLは追加しない
-                            }
-                        }
-                        console.log(`Finished image upload for: ${record.folderName}`);
                         
                         const j1File = allImageFiles.find(f => f.name.startsWith('J1_'));
                         if (j1File) {
@@ -253,7 +230,8 @@ module.exports = (sessions) => {
                             aiData.J1_FileId = allImageFiles[0].id;
                         }
 
-                        Object.assign(record, { status: 'success', aiData, ebayImageUrls });
+                        // レコードに画像ファイルリストを保存
+                        Object.assign(record, { status: 'success', aiData, allImageFiles });
 
                     } catch (err) {
                         console.error(`Error processing record ${record.folderName}:`, err);
