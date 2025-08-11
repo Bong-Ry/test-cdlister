@@ -16,6 +16,7 @@ async function uploadPicture(imageBuffer) {
     <eBayAuthToken>${process.env.EBAY_USER_TOKEN}</eBayAuthToken>
   </RequesterCredentials>
   <PictureName>CD_Image_From_App</PictureName>
+  <PictureFormat>JPG</PictureFormat> 
   <PictureData>${imageBuffer.toString('base64')}</PictureData>
 </UploadSiteHostedPicturesRequest>`;
 
@@ -55,3 +56,4 @@ async function uploadPicture(imageBuffer) {
 }
 
 module.exports = { uploadPicture };
+

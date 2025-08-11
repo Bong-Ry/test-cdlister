@@ -5,32 +5,34 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, 
 });
 
-// Prompt tailored to CD requirements with stronger English translation enforcement
+// Prompt tailored to CD requirements with stronger English translation enforcement and a clear example.
 const PROMPT_TEXT = `
-You are a professional CD appraiser.
-From the provided images of the CD jacket, obi, and disc, please identify only one specific CD by referencing the Discogs database.
-Then, output all items in English according to the following format, separated by '|'. If the original data is in another language, you MUST translate it to English.
-The order of the items MUST be:
+You are a professional CD appraiser. From the provided images, identify one specific CD by referencing the Discogs database.
+Output all items in English, separated by a single '|' character.
+The order of the items MUST be exactly as follows:
 Title|Artist|Type|Genre|Style|RecordLabel|CatalogNumber|Format|Country|Released|Tracklist|isFirstEdition|hasBonus|editionNotes|DiscogsUrl|MPN
 
-- Title: The official title of the album or single. This MUST be translated into English.
-- Artist: The artist's name in Roman characters.
-- Type: Automatically determine if this CD is an "Album" or a "Single".
-- Genre: The music genre.
-- Style: A more detailed music style.
-- RecordLabel: The name of the record label.
-- CatalogNumber: The catalog number.
-- Format: Detailed format like "CD, Album, Reissue".
-- Country: The country where it was released.
-- Released: The release year (in A.D.).
-- Tracklist: List all tracks in the format "1. Track Name 1, 2. Track Name 2, 3. Track Name 3...". All track names MUST be translated into English.
-- isFirstEdition: Automatically determine if it is a first press limited edition with true/false.
-- hasBonus: Automatically determine if it comes with bonuses (bonus tracks, stickers, etc.) with true/false.
-- editionNotes: Supplementary information about the first edition or bonuses (e.g., "First Press Limited Edition with bonus sticker.").
-- DiscogsUrl: The exact Discogs URL referenced during identification.
-- MPN: Output the same value as CatalogNumber.
+- Title: Official title. Translate to English if necessary.
+- Artist: Artist's name in Roman characters.
+- Type: "Album" or "Single".
+- Genre: Music genre.
+- Style: Detailed music style.
+- RecordLabel: Record label name.
+- CatalogNumber: Catalog number.
+- Format: e.g., "CD, Album, Reissue".
+- Country: Release country.
+- Released: Release year (A.D.).
+- Tracklist: All track names in the format "1. Track Name 1, 2. Track Name 2...". Translate to English.
+- isFirstEdition: true/false.
+- hasBonus: true/false.
+- editionNotes: Supplementary info (e.g., "First Press Limited Edition with bonus sticker."). Leave empty if none.
+- DiscogsUrl: The exact Discogs URL.
+- MPN: Same value as CatalogNumber.
 
-Please be sure to respond in the specified pipe-separated format. Do not include any other text.
+Here is an example of a perfect response:
+Quintet for Winds, Op. 26|Arnold Schönberg|Album|Classical|Modern|Deutsche Grammophon|MG 1072|CD, Album|Japan|1970|1. Schwungvoll, 2. Anmutig und heiter|false|false||https://www.discogs.com/release/2970217|MG 1072
+
+Do not include any other text, explanations, or formatting. Only provide the single line of pipe-separated values.
 `;
 
 async function analyzeCd(imageBuffers) {
@@ -38,7 +40,6 @@ async function analyzeCd(imageBuffers) {
         throw new Error('No image data provided.');
     }
 
-    // Convert image data to Base64 format
     const imageMessages = imageBuffers.map(buffer => {
         return {
             type: 'image_url',
@@ -48,7 +49,7 @@ async function analyzeCd(imageBuffers) {
 
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini', // Specify a high-performance and cost-effective model
+            model: 'gpt-4o-mini',
             messages: [
                 {
                     role: 'user',
@@ -58,11 +59,10 @@ async function analyzeCd(imageBuffers) {
                     ],
                 },
             ],
-            // response_format: { type: "json_object" }, // JSON形式の指定を削除
         });
 
         const content = response.choices[0].message.content;
-        return content; // AIからのレスポンスを文字列としてそのまま返す
+        return content;
 
     } catch (error) {
         console.error('OpenAI API Error:', error.response ? error.response.data : error.message);
@@ -70,5 +70,5 @@ async function analyzeCd(imageBuffers) {
     }
 }
 
-// Export for use in other files
 module.exports = { analyzeCd };
+
