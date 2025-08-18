@@ -1,4 +1,3 @@
-// services/ebayService.js
 const EbayApi = require('ebay-api');
 
 const siteKey = process.env.EBAY_SITE || 'EBAY_US';
@@ -28,12 +27,12 @@ async function uploadPictureFromBuffer(imageBuffer, name = 'CD_Image_From_App') 
   }
   const res = await ebay.trading.UploadSiteHostedPictures({
     PictureName: name,
-    PictureData: imageBuffer.toString('base64') // SDK側でMIME組み立て
+    PictureFormat: 'JPG',
+    PictureData: imageBuffer.toString('base64')
   });
   return res.SiteHostedPictureDetails.FullURL;
 }
 
-/** 後方互換用：呼び出し側が uploadPicture(...) のままでも動く */
 async function uploadPicture(src, name) {
   if (Buffer.isBuffer(src)) return uploadPictureFromBuffer(src, name);
   if (typeof src === 'string') return uploadPictureFromExternalUrl(src, name);
@@ -42,7 +41,7 @@ async function uploadPicture(src, name) {
 
 module.exports = {
   ebay,
-  uploadPicture,                    // ← 既存呼び出し用
+  uploadPicture,
   uploadPictureFromExternalUrl,
   uploadPictureFromBuffer
 };
