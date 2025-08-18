@@ -1,9 +1,8 @@
 // services/ebayService.js
-// Trading API: UploadSiteHostedPictures を “素の axios” で直叩きして確実に FullURL を取る版
-// - ExternalPictureURL: XML POST（multipart不要）
-// - バイナリ送信: multipart/form-data（パート順序は XML → 画像）
-// - ダウンロード時に直リンク化＆JPEG 正規化（WEBP/HEIC/αPNG→JPEG）
-// 必要ENV: EBAY_AUTH_TOKEN, EBAY_SITE_ID(=0 US 等), EBAY_SANDBOX("true"/"false"), 省略可: EBAY_COMPAT_LEVEL(既定: 1423)
+// Trading API: UploadSiteHostedPictures を axios 直叩きで実装
+// - ExternalPictureURL（XML POST）→ 失敗時は multipart（XML→画像）
+// - 共有URLの直リンク化、画像ダウンロード、JPEG正規化（WEBP/HEIC/αPNG→JPEG）
+// 必要ENV: EBAY_USER_TOKEN（推奨）/ EBAY_AUTH_TOKEN（互換）, 任意: EBAY_SITE_ID(既定0), EBAY_SANDBOX("true"/"false"), EBAY_COMPAT_LEVEL
 
 'use strict';
 
@@ -14,18 +13,26 @@ const { XMLParser } = require('fast-xml-parser');
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const DEFAULT_PIC_NAME = 'CD_Image_From_App';
-const DEFAULT_COMPAT = parseInt(process.env.EBAY_COMPAT_LEVEL || '1423', 10); // 2025-07 時点のドキュメント版数に追随
+const DEFAULT_COMPAT = parseInt(process.env.EBAY_COMPAT_LEVEL || '1423', 10);
 const EBAY_SITE_ID = String(process.env.EBAY_SITE_ID || '0'); // 0=US
-const EBAY_AUTH_TOKEN = process.env.EBAY_AUTH_TOKEN;
 const EBAY_SANDBOX = String(process.env.EBAY_SANDBOX || '').toLowerCase() === 'true';
-
-if (!EBAY_AUTH_TOKEN) {
-  throw new Error('ENV EBAY_AUTH_TOKEN が未設定です（Trading XMLはトークンをXML内の RequesterCredentials に入れます）。');
-}
 
 const TRADING_ENDPOINT = EBAY_SANDBOX
   ? 'https://api.sandbox.ebay.com/ws/api.dll'
   : 'https://api.ebay.com/ws/api.dll';
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * トークン取得（呼び出し時チェック）
+ * ────────────────────────────────────────────────────────────────────────── */
+const requireEbayToken = () => {
+  const token =
+    (process.env.EBAY_USER_TOKEN || '').trim() ||
+    (process.env.EBAY_AUTH_TOKEN || '').trim(); // 互換
+  if (!token) {
+    throw new Error('eBay のユーザートークンが未設定です。Render の Environment に EBAY_USER_TOKEN を設定してください。');
+  }
+  return token;
+};
 
 /* ──────────────────────────────────────────────────────────────────────────
  * 共有URL → 直リンク（Google Drive / Dropbox / OneDrive）
@@ -72,7 +79,7 @@ const fetchImageBuffer = async (url) => {
     if (isHtmlMagic(buf)) {
       throw new Error(`画像ではなく HTML が返却されました（直リンク化・公開権限を確認）。content-type=${ctype}`);
     }
-    // ctype 無しCDNもあるので続行
+    // ctype 無しでも sharp が読めれば続行
   }
   return buf;
 };
@@ -92,29 +99,30 @@ const normalizeToJpeg = async (buf) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Trading API 共通: ヘッダ作成 & XML ラッパ
+ * Trading API 共通
  * ────────────────────────────────────────────────────────────────────────── */
 const tradingHeaders = (callName, isMultipart) => ({
   'X-EBAY-API-CALL-NAME': callName,
   'X-EBAY-API-SITEID': EBAY_SITE_ID,
   'X-EBAY-API-COMPATIBILITY-LEVEL': String(DEFAULT_COMPAT),
   'X-EBAY-API-RESPONSE-ENCODING': 'XML',
-  // Content-Type は後段で form-data のヘッダと合流（multipart時）／text/xml（XMLのみ時）
   ...(isMultipart ? {} : { 'Content-Type': 'text/xml' }),
 });
 
-const buildXmlEnvelope = (innerXml) =>
-  `<?xml version="1.0" encoding="utf-8"?>` +
-  `<UploadSiteHostedPicturesRequest xmlns="urn:ebay:apis:eBLBaseComponents">` +
-  `<RequesterCredentials><eBayAuthToken>${escapeXml(EBAY_AUTH_TOKEN)}</eBayAuthToken></RequesterCredentials>` +
-  innerXml +
-  `</UploadSiteHostedPicturesRequest>`;
+const escapeXml = (s) =>
+  String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
-const escapeXml = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+const buildXmlEnvelope = (innerXml) => {
+  const token = requireEbayToken(); // 呼び出し時に検査
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<UploadSiteHostedPicturesRequest xmlns="urn:ebay:apis:eBLBaseComponents">` +
+    `<RequesterCredentials><eBayAuthToken>${escapeXml(token)}</eBayAuthToken></RequesterCredentials>` +
+    innerXml +
+    `</UploadSiteHostedPicturesRequest>`
+  );
+};
 
-/* ──────────────────────────────────────────────────────────────────────────
- * レスポンス XML → URL 抽出
- * ────────────────────────────────────────────────────────────────────────── */
 const parseXml = (xml) => {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -126,25 +134,13 @@ const parseXml = (xml) => {
 };
 
 const extractFirstUrl = (json) => {
-  // Ack チェック
-  const ack =
-    json?.UploadSiteHostedPicturesResponse?.Ack ||
-    json?.UploadSiteHostedPicturesResponse?.['ns:Ack'] ||
-    json?.Ack;
-  if (ack && !/^Success/i.test(ack)) {
-    // eBay の error は別途上位で拾わせる
-    return null;
-  }
-
   const details =
     json?.UploadSiteHostedPicturesResponse?.SiteHostedPictureDetails ||
     json?.SiteHostedPictureDetails;
 
-  // 1) FullURL 最優先（公式ドキュメントに明記） [oai_citation:1‡eBay Developers](https://developer.ebay.com/devzone/xml/docs/reference/ebay/uploadsitehostedpictures.html)
   const fullUrl = details?.FullURL;
   if (typeof fullUrl === 'string' && /^https?:\/\//i.test(fullUrl)) return fullUrl;
 
-  // 2) PictureSetMember[].MemberURL（サイズ別URL群）
   const psm = details?.PictureSetMember;
   const members = Array.isArray(psm) ? psm : psm ? [psm] : [];
   for (const m of members) {
@@ -152,11 +148,10 @@ const extractFirstUrl = (json) => {
     if (typeof mu === 'string' && /^https?:\/\//i.test(mu)) return mu;
   }
 
-  // 3) BaseURL（まれにこれしか来ないケースへのフォールバック）
   const base = details?.BaseURL;
   if (typeof base === 'string' && /^https?:\/\//i.test(base)) return base;
 
-  // 4) それでも無ければ、JSON全体から http(s) を総当り
+  // フォールバック：全体から最初の http(s) を拾う
   const urls = [];
   const walk = (v) => {
     if (!v) return;
@@ -173,7 +168,7 @@ const extractFirstUrl = (json) => {
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
- * 実装: ExternalPictureURL（XML POST）
+ * ExternalPictureURL（XML POST）
  * ────────────────────────────────────────────────────────────────────────── */
 const uploadViaExternalUrl = async (publicUrl, pictureName = DEFAULT_PIC_NAME) => {
   const inner =
@@ -190,14 +185,15 @@ const uploadViaExternalUrl = async (publicUrl, pictureName = DEFAULT_PIC_NAME) =
   const json = parseXml(String(data));
   const url = extractFirstUrl(json);
   if (!url) {
-    const errText = JSON.stringify(json?.UploadSiteHostedPicturesResponse?.Errors || json, null, 2);
-    throw new Error(`ExternalPictureURL で URL を取得できません: ${errText}`);
+    const ack = json?.UploadSiteHostedPicturesResponse?.Ack;
+    const err = json?.UploadSiteHostedPicturesResponse?.Errors;
+    throw new Error(`ExternalPictureURL で URL を取得できません（Ack=${ack || 'N/A'}）。Details: ${JSON.stringify(err || json).slice(0, 2000)}`);
   }
   return url;
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
- * 実装: バイナリ添付（multipart）… パート順序は XML → 画像（必須） [oai_citation:2‡eBay Developers](https://developer.ebay.com/devzone/xml/docs/reference/ebay/uploadsitehostedpictures.html)
+ * バイナリ添付（multipart: XML → 画像）
  * ────────────────────────────────────────────────────────────────────────── */
 const uploadViaAttachment = async (jpegBuffer, pictureName = DEFAULT_PIC_NAME) => {
   const inner =
@@ -220,11 +216,9 @@ const uploadViaAttachment = async (jpegBuffer, pictureName = DEFAULT_PIC_NAME) =
   const json = parseXml(String(data));
   const url = extractFirstUrl(json);
   if (!url) {
-    const err = json?.UploadSiteHostedPicturesResponse?.Errors;
     const ack = json?.UploadSiteHostedPicturesResponse?.Ack;
-    throw new Error(
-      `添付アップロードは応答を受信しましたが URL を抽出できません（Ack=${ack || 'N/A'}）。Details: ${JSON.stringify(err || json).slice(0, 2000)}`
-    );
+    const err = json?.UploadSiteHostedPicturesResponse?.Errors;
+    throw new Error(`添付アップロードは応答を受信しましたが URL を抽出できません（Ack=${ack || 'N/A'}）。Details: ${JSON.stringify(err || json).slice(0, 2000)}`);
   }
   return url;
 };
@@ -236,7 +230,7 @@ const uploadPictureFromUrl = async (imageUrl, opts = {}) => {
   const pictureName = opts.pictureName || DEFAULT_PIC_NAME;
   const publicUrl = toDirectPublicUrl(imageUrl);
 
-  // まず ExternalPictureURL（XMLのみ）で取り込み（仕様に明記） [oai_citation:3‡eBay Developers](https://developer.ebay.com/devzone/xml/docs/reference/ebay/uploadsitehostedpictures.html)
+  // 1) ExternalPictureURL
   try {
     return await uploadViaExternalUrl(publicUrl, pictureName);
   } catch (_) {
