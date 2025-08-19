@@ -129,6 +129,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const row       = event.target.closest('tr');
         const recordId  = row.dataset.recordId;
         const statusEl  = document.getElementById(`status-${recordId}`);
+        const titleWarning = row.querySelector('.title-warning');
+
+        // ▼▼▼ ここから修正 ▼▼▼
+        // タイトルエラーが表示されている場合は処理を中断
+        if (titleWarning.style.display === 'block') {
+            alert('タイトルエラーがあります。文字数を修正してください');
+            return; // ここで処理を止める
+        }
+        // ▲▲▲ ここまで修正 ▲▲▲
 
         const priceRadio = row.querySelector(`input[name="price-${recordId}"]:checked`);
         let price;
