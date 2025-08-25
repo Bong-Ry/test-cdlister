@@ -164,11 +164,9 @@ module.exports = (sessions) => {
                         const aiData = parseAiResponse(aiResponse);
                         console.log(`[${record.folderName}] eBayへの画像アップロードを開始...`);
                         
-                        // ▼▼▼ ここから修正 ▼▼▼
                         let allImageFiles = await driveService.getAllImageFiles(record.folderId);
                         if (allImageFiles.length === 0) throw new Error('画像ファイルが見つかりません。');
                         
-                        // ファイル名をM, J, D, その他 の順でソートする
                         const getSortPriority = (fileName) => {
                             if (fileName.toUpperCase().startsWith('M')) return 1;
                             if (fileName.toUpperCase().startsWith('J')) return 2;
@@ -182,21 +180,20 @@ module.exports = (sessions) => {
                             if (priorityA !== priorityB) {
                                 return priorityA - priorityB;
                             }
-                            // 同じ優先度の中ではファイル名でソート
                             return a.name.localeCompare(b.name);
                         });
-                        // ▲▲▲ ここまで修正 ▲▲▲
 
-                        const uploadPromises = allImageFiles.map(async (file) => {
+                        // ★★★ 変更点: eBayへの画像アップロードを1枚ずつの直列処理に変更 ★★★
+                        const ebayImageUrls = [];
+                        for (const file of allImageFiles) {
                             const imageBuffer = await driveService.downloadFile(file.id);
                             const processedImageBuffer = await sharp(imageBuffer)
                                 .jpeg({ quality: 90 })
                                 .toBuffer();
                             const ebayUrl = await ebayService.uploadPictureFromBuffer(processedImageBuffer, file.name);
-                            return ebayUrl;
-                        });
+                            ebayImageUrls.push(ebayUrl);
+                        }
                         
-                        const ebayImageUrls = await Promise.all(uploadPromises);
                         console.log(`[${record.folderName}] ${ebayImageUrls.length}点の画像アップロード完了。`);
                         const j1File = allImageFiles.find(f => f.name.startsWith('J1_'));
                         if (j1File) {
