@@ -152,8 +152,8 @@ module.exports = (sessions) => {
                 const mm = (d.getMonth() + 1).toString().padStart(2, '0');
                 const dd = d.getDate().toString().padStart(2, '0');
                 const datePrefix = `C${yy}${mm}${dd}`;
-                // ★★★ 変更点: 一度に処理する件数を5件に制限 ★★★
-                session.records = subfolders.slice(0, 5).map((f, index) => {
+                // ★★★ 変更点: 一度に処理する件数を10件に制限 ★★★
+                session.records = subfolders.slice(0, 10).map((f, index) => {
                     const customLabelNumber = (processedCount + index + 1).toString().padStart(4, '0');
                     return { id: uuidv4(), folderId: f.id, folderName: f.name, status: 'pending', customLabel: `${datePrefix}_${customLabelNumber}` };
                 });
