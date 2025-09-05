@@ -152,8 +152,8 @@ module.exports = (sessions) => {
                 const mm = (d.getMonth() + 1).toString().padStart(2, '0');
                 const dd = d.getDate().toString().padStart(2, '0');
                 const datePrefix = `C${yy}${mm}${dd}`;
-                // ★★★ 変更点: 一度に処理する件数を10件に制限 ★★★
-                session.records = subfolders.slice(0, 10).map((f, index) => {
+                // ★★★ 変更点: 一度に処理する件数を7件に制限 ★★★
+                session.records = subfolders.slice(0, 7).map((f, index) => {
                     const customLabelNumber = (processedCount + index + 1).toString().padStart(4, '0');
                     return { id: uuidv4(), folderId: f.id, folderName: f.name, status: 'pending', customLabel: `${datePrefix}_${customLabelNumber}` };
                 });
@@ -184,13 +184,12 @@ module.exports = (sessions) => {
                             return a.name.localeCompare(b.name);
                         });
 
-                        // ★★★ 変更点: eBayへの画像アップロードをサブフォルダ内の全画像で並列処理に変更 ★★★
                         const ebayImageUrls = await Promise.all(allImageFiles.map(async (file) => {
                             const imageBuffer = await driveService.downloadFile(file.id);
                             const processedImageBuffer = await sharp(imageBuffer)
                                 .jpeg({ quality: 90 })
                                 .toBuffer();
-                            return ebayService.uploadPictureFromBuffer(processedImageBuffer, file.name);
+                            return ebayService.uploadPictureFromBuffer(processedImageBuffer, { pictureName: file.name });
                         }));
                         
                         console.log(`[${record.folderName}] ${ebayImageUrls.length}点の画像アップロード完了。`);

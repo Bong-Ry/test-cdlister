@@ -13,17 +13,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const downloadBtn        = document.getElementById('download-csv-btn');
 
     let storeCategories = [];
-    let shippingCosts = []; // 送料を格納する配列
+    let shippingCosts = [];
 
     try {
-        // カテゴリ情報を取得
         const categoryResponse = await fetch('/categories');
         if (!categoryResponse.ok) {
             throw new Error('Failed to fetch categories');
         }
         storeCategories = await categoryResponse.json();
 
-        // ★★★ 送料情報を取得 ★★★
         const shippingResponse = await fetch('/shipping-costs');
         if (!shippingResponse.ok) {
             throw new Error('Failed to fetch shipping costs');
@@ -50,11 +48,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const priceOptions = ['29.99', '39.99', '59.99', '79.99', '99.99'];
 
+        // ★★★ 変更点: 「その他」の価格入力欄に step="0.01" を追加 ★★★
         const priceRadios  = priceOptions.map((price, index) =>
             `<label class="radio-label"><input type="radio" name="price-${record.id}" value="${price}" ${index === 0 ? 'checked' : ''} ${isError ? 'disabled' : ''}> ${price} USD</label>`
         ).join('')
         + `<label class="radio-label"><input type="radio" name="price-${record.id}" value="other" ${isError ? 'disabled' : ''}> その他</label>`
-        + `<input type="number" name="price-other-${record.id}" class="other-price-input" style="display:none;" placeholder="価格" ${isError ? 'disabled' : ''}>`;
+        + `<input type="number" name="price-other-${record.id}" class="other-price-input" style="display:none;" placeholder="価格" step="0.01" ${isError ? 'disabled' : ''}>`;
 
         const shippingSelect = shippingCosts.map(price => `<option value="${price}">${price}</option>`).join('');
 
@@ -129,15 +128,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const row       = event.target.closest('tr');
         const recordId  = row.dataset.recordId;
         const statusEl  = document.getElementById(`status-${recordId}`);
-        const titleWarning = row.querySelector('.title-warning');
-
-        // ▼▼▼ ここから修正 ▼▼▼
-        // タイトルエラーが表示されている場合は処理を中断
-        if (titleWarning.style.display === 'block') {
-            alert('タイトルエラーがあります。文字数を修正してください');
-            return; // ここで処理を止める
-        }
-        // ▲▲▲ ここまで修正 ▲▲▲
 
         const priceRadio = row.querySelector(`input[name="price-${recordId}"]:checked`);
         let price;
@@ -189,9 +179,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const checkTitleLength = () => {
             const artistLength = artistDisplay.textContent.length;
             const obiValue = obiSelect.value;
-            let maxLength = 80 - (artistLength + 1); // 80 - (artist + space)
+            let maxLength = 80 - (artistLength + 1);
             if (obiValue !== 'なし') {
-                maxLength -= 5; // " w/obi"
+                maxLength -= 5;
             }
 
             if (titleInput.value.length > maxLength) {
@@ -245,7 +235,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setupEventListeners(row);
                 }
             });
-
 
             const total      = session.records.length;
             const processed  = session.records.filter(r => r.status !== 'pending').length;
