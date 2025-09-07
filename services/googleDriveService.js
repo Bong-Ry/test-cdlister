@@ -2,7 +2,6 @@ const { google } = require('googleapis');
 const path = require('path');
 
 const KEY_FILE_PATH = path.join(__dirname, '..', 'service-account-key.json');
-// スプレッドシート読み取りのスコープを追加
 const SCOPES = [
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/spreadsheets.readonly'
@@ -14,28 +13,21 @@ async function getDriveClient() {
     return google.drive({ version: 'v3', auth: client });
 }
 
-// スプレッドシートからカテゴリを取得する関数
-async function getStoreCategories() {
+async function getSheetsClient() {
     const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
     const client = await auth.getClient();
-    const sheets = google.sheets({ version: 'v4', auth: client });
+    return google.sheets({ version: 'v4', auth: client });
+}
 
+async function getStoreCategories() {
+    const sheets = await getSheetsClient();
     try {
         const spreadsheetId = '1pGXjlYl29r1KIIPiIu0N4gXKdGquhIZe3UjH_QApwfA';
         const range = 'Category-CD!A2:B';
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range,
-        });
-
+        const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
         const rows = response.data.values;
         if (rows && rows.length) {
-            return rows
-                .filter(row => row[0] && row[1]) // A列とB列の両方に値がある行のみを対象
-                .map(row => ({
-                    name: row[0], // A列の値
-                    id: row[1],   // B列の値
-                }));
+            return rows.filter(row => row[0] && row[1]).map(row => ({ name: row[0], id: row[1] }));
         }
         return [];
     } catch (err) {
@@ -44,23 +36,15 @@ async function getStoreCategories() {
     }
 }
 
-// スプレッドシートから送料を取得する関数
 async function getShippingCosts() {
-    const auth = new google.auth.GoogleAuth({ keyFile: KEY_FILE_PATH, scopes: SCOPES });
-    const client = await auth.getClient();
-    const sheets = google.sheets({ version: 'v4', auth: client });
-
+    const sheets = await getSheetsClient();
     try {
         const spreadsheetId = '1pGXjlYl29r1KIIPiIu0N4gXKdGquhIZe3UjH_QApwfA';
         const range = '送料管理!B2:B';
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range,
-        });
-
+        const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
         const rows = response.data.values;
         if (rows && rows.length) {
-            return rows.flat().filter(cost => cost && cost.trim() !== ''); // 値が存在する行のみを対象
+            return rows.flat().filter(cost => cost && cost.trim() !== '');
         }
         return [];
     } catch (err) {
@@ -69,15 +53,29 @@ async function getShippingCosts() {
     }
 }
 
-
 function getFolderIdFromUrl(url) {
     const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
 }
 
-async function countProcessedSubfolders(parentFolderUrl) {
-    const parentFolderId = getFolderIdFromUrl(parentFolderUrl);
-    if (!parentFolderId) throw new Error('親フォルダのURLが無効です。');
+// ★★★ 追加: 親フォルダ名を取得するための関数 ★★★
+async function getFolderDetails(folderId) {
+    if (!folderId) throw new Error('Invalid Folder ID');
+    const drive = await getDriveClient();
+    try {
+        const res = await drive.files.get({
+            fileId: folderId,
+            fields: 'id, name'
+        });
+        return res.data;
+    } catch (err) {
+        console.error('Error fetching folder details:', err.message);
+        throw new Error('Failed to retrieve folder details.');
+    }
+}
+
+async function countProcessedSubfolders(parentFolderId) {
+    if (!parentFolderId) throw new Error('親フォルダのIDが無効です。');
     const drive = await getDriveClient();
     const res = await drive.files.list({
         q: `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false and name contains '済'`,
@@ -86,9 +84,8 @@ async function countProcessedSubfolders(parentFolderUrl) {
     return res.data.files ? res.data.files.length : 0;
 }
 
-async function getUnprocessedSubfolders(parentFolderUrl) {
-    const parentFolderId = getFolderIdFromUrl(parentFolderUrl);
-    if (!parentFolderId) throw new Error('親フォルダのURLが無効です。');
+async function getUnprocessedSubfolders(parentFolderId) {
+    if (!parentFolderId) throw new Error('親フォルダのIDが無効です。');
     const drive = await getDriveClient();
     const res = await drive.files.list({
         q: `'${parentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false and not name contains '済'`,
@@ -129,10 +126,7 @@ async function downloadFile(fileId) {
 
 async function getImageStream(fileId) {
     const drive = await getDriveClient();
-    const res = await drive.files.get(
-        { fileId: fileId, alt: 'media' },
-        { responseType: 'stream' }
-    );
+    const res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
     return res.data;
 }
 
@@ -154,5 +148,6 @@ module.exports = {
     getImageStream,
     renameFolder,
     getStoreCategories,
-    getShippingCosts // 追加
+    getShippingCosts,
+    getFolderDetails // ★★★ 追加した関数をエクスポート ★★★
 };

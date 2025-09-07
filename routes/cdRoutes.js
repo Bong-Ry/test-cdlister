@@ -5,39 +5,14 @@ const driveService = require('../services/googleDriveService');
 const aiService = require('../services/openAiService');
 const ebayService = require('../services/ebayService');
 
-function parseAiResponse(responseText) {
-    if (!responseText) return {};
-    if (typeof responseText === 'object' && responseText !== null) return responseText;
-    if (typeof responseText === 'string') {
-        try {
-            return JSON.parse(responseText);
-        } catch (jsonError) {
-            const fields = [
-                "Title", "Artist", "Type", "Genre", "Style", "RecordLabel", "CatalogNumber",
-                "Format", "Country", "Released", "Tracklist", "isFirstEdition", "hasBonus",
-                "editionNotes", "DiscogsUrl", "MPN"
-            ];
-            const values = responseText.split('|').map(v => v.trim());
-            const aiData = {};
-            fields.forEach((field, index) => {
-                let value = values[index] || '';
-                if (field === 'isFirstEdition' || field === 'hasBonus') {
-                    aiData[field] = value.toLowerCase() === 'true';
-                } else {
-                    aiData[field] = value;
-                }
-            });
-            return aiData;
-        }
-    }
-    console.error('Invalid AI response format received:', responseText);
-    throw new Error('Invalid AI response format');
-}
-
 const descriptionTemplate = ({ aiData, userInput }) => {
-    const tracklistHtml = aiData.Tracklist
-        ? aiData.Tracklist.split(', ').map(track => `<li>${track.replace(/^\d+\.\s*/, '')}</li>`).join('')
+    // AIのTracklistがオブジェクト形式になったことに対応
+    const tracklistHtml = (aiData.Tracklist && typeof aiData.Tracklist === 'object')
+        ? Object.entries(aiData.Tracklist).map(([key, track]) => `<li>${key}. ${track}</li>`).join('')
         : '<li>N/A</li>';
+
+    // ★★★ 変更点: ユーザーが編集したアーティスト名を使うようにする ★★★
+    const artistName = userInput.artist || aiData.Artist || 'N/A';
 
     const html = `
     <div style="font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; color: #333;">
@@ -47,7 +22,7 @@ const descriptionTemplate = ({ aiData, userInput }) => {
                 <h2 style="color: #2c5282; font-size: 20px;">Condition</h2>
                 <ul style="list-style-type: disc; padding-left: 20px;"><li style="margin-bottom: 10px;">Case: ${userInput.conditionCase}</li><li style="margin-bottom: 10px;">CD: ${userInput.conditionCd}</li><li style="margin-bottom: 10px;">OBI: ${userInput.conditionObi}</li></ul>
                 <h2 style="color: #2c5282; font-size: 20px;">Key Features</h2>
-                <ul style="list-style-type: disc; padding-left: 20px;"><li style="margin-bottom: 10px;">${userInput.comment || aiData.editionNotes || 'Please check the images for details.'}</li><li style="margin-bottom: 10px;">Artist: ${aiData.Artist || 'N/A'}</li><li style="margin-bottom: 10px;">Format: ${aiData.Format || 'CD'}</li><li style="margin-bottom: 10px;">Genre: ${aiData.Genre || 'N/A'}</li></ul>
+                <ul style="list-style-type: disc; padding-left: 20px;"><li style="margin-bottom: 10px;">${userInput.comment || aiData.editionNotes || 'Please check the images for details.'}</li><li style="margin-bottom: 10px;">Artist: ${artistName}</li><li style="margin-bottom: 10px;">Format: ${aiData.Format || 'CD'}</li><li style="margin-bottom: 10px;">Genre: ${aiData.Genre || 'N/A'}</li></ul>
             </div>
             <div style="flex: 1; min-width: 300px; padding: 10px;">
                 <h2 style="color: #2c5282; font-size: 20px;">Tracklist</h2>
@@ -86,9 +61,14 @@ const generateCsv = (records) => {
     const rows = records.filter(r => r.status === 'saved').map(r => {
         const { aiData, userInput, ebayImageUrls, customLabel } = r;
         const picURLs = (ebayImageUrls || []).join('|');
-        const titleParts = [aiData.Artist, aiData.Title];
-        if (userInput.conditionObi !== 'なし') titleParts.push('w/obi');
-        const newTitle = titleParts.join(' ');
+
+        // ★★★ 変更点: ユーザーが編集したタイトルとアーティスト名を優先して使用 ★★★
+        const artist = userInput.artist || aiData.Artist;
+        const title = userInput.title || aiData.Title;
+        const titleParts = [artist, title];
+        if (userInput.conditionObi !== 'なし' && userInput.conditionObi !== 'Not Applicable') titleParts.push('w/obi');
+        const newTitle = titleParts.filter(Boolean).join(' ');
+
         const data = {
             "Action(CC=Cp1252)": "Add", "CustomLabel": customLabel, "StartPrice": userInput.price,
             "ConditionID": userInput.conditionId, "Title": newTitle, "Description": descriptionTemplate({ aiData, userInput }),
@@ -98,15 +78,15 @@ const generateCsv = (records) => {
             "Location": "417-0816, Fuji Shizuoka", "Apply Profile Domestic": "0.0", "Apply Profile International": "0.0",
             "BuyerRequirements:LinkedPayPalAccount": "0.0", "Duration": "GTC", "Format": "FixedPriceItem",
             "Quantity": "1", "Currency": "USD", "SiteID": "US", "C:Country": "Japan", "BestOfferEnabled": "0",
-            "C:Artist": aiData.Artist, "C:Release Title": aiData.Title, "C:Format": aiData.Format, "C:Genre": aiData.Genre,
+            "C:Artist": artist, "C:Release Title": title, "C:Format": aiData.Format, "C:Genre": aiData.Genre,
             "C:Record Label": aiData.RecordLabel, "C:Edition": aiData.isFirstEdition ? 'Limited Edition' : '',
             "C:Style": aiData.Style, "C:Type": aiData.Type, "C:Color": "NA", "C:Release Year": aiData.Released,
             "C:CD Grading": userInput.conditionCd, "C:Case Type": "Jewel Case: Standard", "C:Case Condition": userInput.conditionCase,
             "C:Inlay Condition": userInput.conditionObi, "C:Country/Region of Manufacture": aiData.Country,
-            "C:Features": userInput.conditionObi !== 'なし' ? 'OBI' : '', "C:Producer": "NA", "C:Language": "NA",
-            "C:Instrument": "NA", "C:Occasion": "NA", "C:Era": "NA", "C:Composer": "NA", "C:Conductor": "NA",
-            "C:Performer Orchestra": "NA", "C:Run Time": "NA", "C:MPN": aiData.MPN,
-            "C:California Prop 65 Warning": "NA", "C:Catalog Number": aiData.CatalogNumber,
+            "C:Features": (userInput.conditionObi !== 'なし' && userInput.conditionObi !== 'Not Applicable') ? 'OBI' : '',
+            "C:Producer": "", "C:Language": "", "C:Instrument": "", "C:Occasion": "", "C:Era": "", "C:Composer": "", "C:Conductor": "",
+            "C:Performer Orchestra": "", "C:Run Time": "", "C:MPN": aiData.MPN,
+            "C:California Prop 65 Warning": "", "C:Catalog Number": aiData.CatalogNumber,
             "C:Unit Quantity": "", "C:Unit Type": "", "StoreCategory": userInput.storeCategory, "__keyValuePairs": ""
         };
         return headers.map(h => `"${(data[h] || '').toString().replace(/"/g, '""')}"`).join(',');
@@ -117,6 +97,8 @@ const generateCsv = (records) => {
 module.exports = (sessions) => {
     const router = express.Router();
     router.get('/', (req, res) => res.render('index'));
+
+    // ... ( '/categories' and '/shipping-costs' routes remain the same ) ...
     router.get('/categories', async (req, res) => {
         try {
             const categories = await driveService.getStoreCategories();
@@ -135,71 +117,60 @@ module.exports = (sessions) => {
             res.status(500).json({ error: 'Failed to retrieve shipping costs' });
         }
     });
+
     router.post('/process', async (req, res) => {
         const parentFolderUrl = req.body.parentFolderUrl;
         if (!parentFolderUrl) return res.redirect('/');
         const sessionId = uuidv4();
         sessions.set(sessionId, { status: 'processing', records: [] });
         res.render('results', { sessionId });
+
         (async () => {
             const session = sessions.get(sessionId);
             try {
-                const processedCount = await driveService.countProcessedSubfolders(parentFolderUrl);
-                const subfolders = await driveService.getUnprocessedSubfolders(parentFolderUrl);
+                // ★★★ 変更点: SKU生成のために親フォルダ名を取得 ★★★
+                const parentFolderId = driveService.getFolderIdFromUrl(parentFolderUrl);
+                if (!parentFolderId) throw new Error('親フォルダのURLが無効です。');
+                const parentFolder = await driveService.getFolderDetails(parentFolderId);
+                const parentFolderName = parentFolder.name;
+
+                const subfolders = await driveService.getUnprocessedSubfolders(parentFolderId);
                 if (subfolders.length === 0) throw new Error('処理対象のフォルダが見つかりません。「済」がついていないフォルダがあるか確認してください。');
-                const d = new Date();
-                const yy = d.getFullYear().toString().slice(-2);
-                const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-                const dd = d.getDate().toString().padStart(2, '0');
-                const datePrefix = `C${yy}${mm}${dd}`;
-                // ★★★ 変更点: 一度に処理する件数を7件に制限 ★★★
-                session.records = subfolders.slice(0, 7).map((f, index) => {
-                    const customLabelNumber = (processedCount + index + 1).toString().padStart(4, '0');
-                    return { id: uuidv4(), folderId: f.id, folderName: f.name, status: 'pending', customLabel: `${datePrefix}_${customLabelNumber}` };
+                
+                // ★★★ 変更点: SKUの命名規則を変更 ★★★
+                session.records = subfolders.slice(0, 10).map((f) => {
+                    return { id: uuidv4(), folderId: f.id, folderName: f.name, status: 'pending', customLabel: `${parentFolderName}-${f.name}` };
                 });
+
                 for (const record of session.records) {
                     try {
                         const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
                         const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
-                        const aiResponse = await aiService.analyzeCd(imageBuffersForAi);
-                        const aiData = parseAiResponse(aiResponse);
-                        console.log(`[${record.folderName}] eBayへの画像アップロードを開始...`);
+                        
+                        // ★★★ 変更点: AIの応答がJSONになったため、パース処理は不要 ★★★
+                        const aiData = await aiService.analyzeCd(imageBuffersForAi);
                         
                         let allImageFiles = await driveService.getAllImageFiles(record.folderId);
                         if (allImageFiles.length === 0) throw new Error('画像ファイルが見つかりません。');
                         
-                        const getSortPriority = (fileName) => {
-                            if (fileName.toUpperCase().startsWith('M')) return 1;
-                            if (fileName.toUpperCase().startsWith('J')) return 2;
-                            if (fileName.toUpperCase().startsWith('D')) return 3;
-                            return 4;
-                        };
-
                         allImageFiles.sort((a, b) => {
-                            const priorityA = getSortPriority(a.name);
-                            const priorityB = getSortPriority(b.name);
-                            if (priorityA !== priorityB) {
-                                return priorityA - priorityB;
-                            }
-                            return a.name.localeCompare(b.name);
+                            const priority = (name) => {
+                                const upper = name.toUpperCase();
+                                if (upper.startsWith('M')) return 1; if (upper.startsWith('J')) return 2; if (upper.startsWith('D')) return 3; return 4;
+                            };
+                            return priority(a.name) - priority(b.name) || a.name.localeCompare(b.name);
                         });
 
                         const ebayImageUrls = await Promise.all(allImageFiles.map(async (file) => {
                             const imageBuffer = await driveService.downloadFile(file.id);
-                            const processedImageBuffer = await sharp(imageBuffer)
-                                .jpeg({ quality: 90 })
-                                .toBuffer();
-                            return ebayService.uploadPictureFromBuffer(processedImageBuffer, { pictureName: file.name });
+                            return ebayService.uploadPictureFromBuffer(imageBuffer, { pictureName: `${record.customLabel}_${file.name}` });
                         }));
                         
-                        console.log(`[${record.folderName}] ${ebayImageUrls.length}点の画像アップロード完了。`);
-                        const j1File = allImageFiles.find(f => f.name.startsWith('J1_'));
-                        if (j1File) {
-                            aiData.J1_FileId = j1File.id;
-                        } else if (allImageFiles.length > 0) {
-                            aiData.J1_FileId = allImageFiles[0].id;
-                        }
-                        Object.assign(record, { status: 'success', aiData, ebayImageUrls });
+                        const j1File = allImageFiles.find(f => f.name.toUpperCase().startsWith('J1'));
+                        aiData.J1_FileId = j1File ? j1File.id : (allImageFiles.length > 0 ? allImageFiles[0].id : null);
+                        
+                        Object.assign(record, { status: 'success', aiData, ebayImageUrls, allImageFiles: allImageFiles.map(f => ({id: f.id, name: f.name})) });
+
                     } catch (err) {
                         console.error(`Error processing record ${record.folderName}:`, err);
                         Object.assign(record, { status: 'error', error: err.message });
@@ -213,9 +184,38 @@ module.exports = (sessions) => {
             }
         })();
     });
+
     router.get('/status/:sessionId', (req, res) => {
         res.json(sessions.get(req.params.sessionId) || { status: 'error', error: 'Session not found' });
     });
+
+    // ★★★ 追加: 再検索用のAPIエンドポイント ★★★
+    router.post('/research/:sessionId/:recordId', async (req, res) => {
+        const { sessionId, recordId } = req.params;
+        const session = sessions.get(sessionId);
+        const record = session?.records.find(r => r.id === recordId);
+        if (!record) return res.status(404).json({ error: 'Record not found' });
+
+        try {
+            record.status = 'researching'; // フロントで処理中だとわかるように
+            
+            const analysisFiles = await driveService.getImagesForAnalysis(record.folderId);
+            const imageBuffersForAi = await Promise.all(analysisFiles.map(f => driveService.downloadFile(f.id)));
+            const excludeUrl = record.aiData?.DiscogsUrl || null;
+            
+            const aiData = await aiService.analyzeCd(imageBuffersForAi, excludeUrl);
+            record.aiData = aiData;
+            record.status = 'success';
+            
+            res.json({ status: 'ok', aiData: record.aiData });
+        } catch (err) {
+            console.error(`Error re-searching record ${record.customLabel}:`, err);
+            record.status = 'error';
+            record.error = err.message;
+            res.status(500).json({ status: 'error', error: err.message });
+        }
+    });
+
     router.post('/save/:sessionId/:recordId', async (req, res) => {
         const { sessionId, recordId } = req.params;
         const session = sessions.get(sessionId);
@@ -226,19 +226,18 @@ module.exports = (sessions) => {
         await driveService.renameFolder(record.folderId, `済 ${record.folderName}`);
         res.json({ status: 'ok' });
     });
+
     router.get('/csv/:sessionId', (req, res) => {
         const session = sessions.get(req.params.sessionId);
         if (!session) return res.status(404).send('Session not found');
         const d = new Date();
-        const yyyy = d.getFullYear();
-        const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-        const dd = d.getDate().toString().padStart(2, '0');
-        const date = `${yyyy}${mm}${dd}`;
+        const date = `${d.getFullYear()}${(d.getMonth() + 1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
         const fileName = `CD_${date}.csv`;
         res.header('Content-Type', 'text/csv; charset=UTF-8');
         res.attachment(fileName);
         res.send('\uFEFF' + generateCsv(session.records));
     });
+
     router.get('/image/:fileId', async (req, res) => {
         try {
             const imageStream = await driveService.getImageStream(req.params.fileId);
